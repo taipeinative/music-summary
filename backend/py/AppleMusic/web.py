@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import math
-import time
 from pathlib import Path
+import time
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag

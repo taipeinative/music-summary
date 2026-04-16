@@ -113,6 +113,18 @@ class Localization:
         return '; '.join([f'{self[defined]} <{Localization.literal(defined)}>' for defined in self.defined_locales()])
 
 @dataclass
+class Playlist:
+    '''
+    The playlist info.
+    '''
+    library_id: int
+    name: str
+    tracks: list[int] = field(default_factory = lambda: [])
+
+    def __repr__(self) -> str:
+        return f'Playlist({self.library_id}, {len(self.tracks)} track(s), name: {self.name})'
+
+@dataclass
 class Song(Identity):
     '''
     The track info.
@@ -120,6 +132,7 @@ class Song(Identity):
     album: Identity | None = None
     artist: list[Identity] = field(default_factory = lambda: [])
     audio: str | None = None
+    count: int = 0
     date: datetime | None = None
     disc: int = 0
     duration: int = 0
@@ -167,6 +180,7 @@ class Encoder(json.JSONEncoder):
                 'dt': o.date,
                 'is': o.isrc,
                 'lc': o.locale,
+                'pc': o.count,
                 'tr': o.track
             }
         
@@ -242,6 +256,7 @@ def _to_song(value: Song | dict) -> Song:
         album=_to_identity(value.get('al', value.get('album'))),
         artist=artist_list,
         audio=value.get('ad', value.get('audio')),
+        count=int(value.get('pc', value.get('count', 0))),
         date=parsed_date,
         disc=int(value.get('dc', value.get('disc', 0))),
         duration=int(value.get('du', value.get('duration', 0))),
@@ -258,7 +273,7 @@ class Decoder(json.JSONDecoder):
         if {'en', 'fr', 'ja', 'ko', 'zs', 'zt'} & obj.keys():
             return _to_localization(obj)
 
-        if {'ad', 'al', 'at', 'dc', 'du', 'is', 'lc', 'tr'} & obj.keys():
+        if {'ad', 'al', 'at', 'dc', 'du', 'is', 'lc', 'pc', 'tr'} & obj.keys():
             return _to_song(obj)
 
         if 'id' in obj and 'nm' in obj:

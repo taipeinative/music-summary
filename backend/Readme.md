@@ -14,7 +14,7 @@ The requirements are:
 
 ### Fetching Apple Music API
 
-**[fetch.py](.\py\fetch.py)** accesses [Apple Music API](https://developer.apple.com/documentation/applemusicapi) to collect the metadata of all tracks in a public playlist. The mandatory arguments are the playlist id (`--id`) and output JSON path (`--output`).
+**[fetch.py](py\fetch.py)** accesses [Apple Music API](https://developer.apple.com/documentation/applemusicapi) to collect the metadata of all tracks in a public playlist. The mandatory arguments are the playlist id (`--id`) and output JSON path (`--output`).
 
 Here's an example of fetching [danceXL](https://music.apple.com/us/playlist/pl.6bf4415b83ce4f3789614ac4c3675740) playlist created by Apple Music curators:
 
@@ -101,4 +101,5 @@ Song object:
 | dt | `string?` | The release date in YYYY-MM-DD format. |
 | is | `string?` | The [International Standard Recording Code](https://en.wikipedia.org/wiki/International_Standard_Recording_Code) of the song. |
 | lc | `string?` | The language of the song. |
+| pc | `number` | The play count of the song. |
 | tr | `number` | The track number of the song. |
