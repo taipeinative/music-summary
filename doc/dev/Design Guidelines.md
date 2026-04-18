@@ -47,84 +47,213 @@ See [Fetching Apple Music API](../../backend/Readme.md#schema-of-playlist-json) 
 To match and merge the mentioned data source while maintain the backward compatibility, a new schema is required for the new database. \
 The new schema of the database has the following specifications:
 
-### Sheets
+### Tables - Basics
 
-#### Albums
+#### albums
 
 | Field | Key | Type | Description |
 | ----- | --- | ---- | ----------- |
 | album_id | PRIMARY | `Integer` | The unique ID of the album. |
+| album_type | | [`DBAlbum`](#dbalbum) | The type of the album. |
 | artwork | | `URL?` | The URL to the album artwork image. |
-| title | | [`DBLocalization`](#dblocalization) | The title of the album. |
+| disc_count | | `Integer?` | The number of discs in the album. |
+| track_count | | `Integer?` | The number of tracks in the album. |
 
-#### Artists
+#### artists
 
 | Field | Key | Type | Description |
 | ----- | --- | ---- | ----------- |
 | artist_id | PRIMARY | `Integer` | The unique ID of the artist. |
-| alias | | `[String]` | The alias of the artist. |
+| artist_tag | | [`DBArtistTag`](#dbartisttag) | The extra tag of the artist. |
 | artwork | | `URL?` | The URL to the artist artowrk image. |
-| relations | | [[`DBRelation`](#dbrelation)] | The relationship of the artist with other artists. |
-| stream_id | | [`DBStream`](#dbstream) | The ID of the artist at different stream platforms. |
-| tag | | [`DBArtistTag`](#dbartisttag) | The extra tag of the artist. |
-| title | | [`DBLocalization`](#dblocalization) | The title of the artist. |
+| title | | `String` | The original title of the artist. |
 
-#### PlayCount Sheets
-
-The play count retreived at different time are assigned to separate sheets. For instance, `PlayCount_202512` or `PlayCount_202612`.
+#### entries
 
 | Field | Key | Type | Description |
 | ----- | --- | ---- | ----------- |
-| song_id | | `Integer` | The unique ID of the song. |
-| play_count | | `Integer` | The play count of the song at that time. |
+| entry_id | PRIMARY | `Integer` | The unique ID of the entry. |
+| source_id | | `Integer` | The source ID. |
+| source_item_id | | `String` | The song's ID in the source. |
+| raw_album | | `String` | The album of the song in the source. |
+| raw_artist | | `String` | The artist of the song in the source. |
+| raw_duration | | `Integer` | The duration of the song in the source. |
+| raw_json | | `JSON` | The JSON metadata of the song from the source. |
+| raw_title | | `String` | The title of the song in the source. |
 
-#### Songs
+#### songs
 
 | Field | Key | Type | Description |
 | ----- | --- | ---- | ----------- |
 | song_id | PRIMARY | `Integer` | The unique ID of the song. |
-| album | | `Integer` | The album ID of the song. |
-| artist | | `[Integer]` | The list of artist IDs of the song. |
 | audio | | `URL?` | The URL to the preview track provided by stream platforms. |
-| disc_number | | `Integer?` | The disc number of the song. |
 | duration | | `Integer` | The track duration in milliseconds. |
-| genre | | [`DBGenre`](#dbgenre) | The genre of the song. |
-| genre_tag | | [`DBGenreTag`](#dbgenretag) | The additional info on the genre. |
-| isrc | | `[String]` | The list of ISRCs that should point to this release. |
-| locale | | [`DBLocale`](#dblocale) | The locale of the song. |
+| genre_tag | | [`DBGenreTag`](#dbgenretag) | The genre of the song. |
+| genre_info | | [`DBGenreInfo`](#dbgenreinfo) | The additional info on the genre. |
 | media_tag | | [`DBMediaTag`](#dbmediatag) | The additional info on the song media. |
 | release_date | | `Date?` | The release date of the song. |
-| stream_id | | [`DBStream`](#dbstream) | The ID of the song at different stream platforms. |
-| stream_genre | | `String?` | The genre of the song provided by the stream platforms. |
-| stream_locale | | `String?` | The language of the song provided by the stream platforms. |
-| title | | [`DBLocalization`](#dblocalization) | The title of the song. |
-| track_number | | `Integer?` | The track number of the song. |
 | vocal | | [`DBVocal`](#dbvocal) | The vocal type of the song. |
 
-### Structures
+#### sources
 
-#### DBLocalization
+| Field | Key | Type | Description |
+| ----- | --- | ---- | ----------- |
+| source_id | PRIMARY | `Integer` | The unique ID of the source (per import). |
+| export_date | | `Date?` | The date when the source was exported. |
+| import_date | | `Date` | The date when the source was imported. |
+| source_file | | `String` | The source file path. |
+| source_type | | [`DBAuthority`](#dbauthority) | The type of the source. |
 
-A key-value pair, where its keys are [`DBLocale`](#dblocale) (single component), and values are `String`.
+### Tables - Relations
 
-#### DBRelation
+#### album_authorities
+
+```sql
+UNIQUE(authority, authority_code)
+```
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| role | [`DBRole`](#dbrole) | The role of the artist to the reference artist. |
-| artist | `Integer` | The id of the reference artist. |
+| album_id | `Integer` | The album ID. |
+| authority | [`DBAuthority`](#dbauthority) | The authority that issues the identifier. |
+| authority_code | `String` | The identifier attached to the album. |
 
-#### DBSource
-
-A key-value pair, where its keys (which represent the storefronts) are `String`, and values (the item id) are `String`.
-
-#### DBStream
+#### album_titles
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| apple_music | `DBSource` | The Apple Music information. |
+| album_id | `Integer` | The album ID. |
+| fallback | `Boolean` | Is this localization the fallback/primary translation? |
+| locale | [`DBLocale`](#dblocale) | The language code. |
+| title | `String` | The album title in the given language. |
+
+#### album_tracks
+
+```sql
+UNIQUE(album_id, disc_number, track_number)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| album_id | `Integer` | The album ID. |
+| song_id | `Integer` | The song ID. |
+| disc_number | `Integer` | The disc number of the song. |
+| track_number | `Integer` | The track number of the song. |
+
+#### artist_alias
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| artist_id | `Integer` | The artist ID. |
+| alias | `String` | The alias of the artist. |
+
+#### artist_authorities
+
+```sql
+UNIQUE(authority, authority_code)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| artist_id | `Integer` | The artist ID. |
+| authority | [`DBAuthority`](#dbauthority) | The authority that issues the identifier. |
+| authority_code | `String` | The identifier attached to the artist. |
+
+#### artist_relations
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| artist_id | `Integer` | The artist ID. |
+| ref_artist_id | `Integer` | The related artist ID. |
+| relation_to_ref | [`DBRelation`](#dbrelation) | The relation of the artist to the reference artist. |
+
+#### artist_titles
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| artist_id | `Integer` | The artist ID. |
+| fallback | `Boolean` | Is this localization the fallback/primary translation? |
+| locale | [`DBLocale`](#dblocale) | The language code. |
+| title | `String` | The artist title in the given language. |
+
+#### entry_mapping
+
+```sql
+UNIQUE(entry_id, song_id)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| entry_id | `Integer` | The entry ID. |
+| song_id | `Integer` | The matched song ID. |
+| confidence | `Float` | The confidence of the match. |
+| match_method | [`DBMethod`](#dbmethod) | The method to match the song. |
+| status | [`DBStatus`](#dbstatus) | The status of this map. |
+
+#### song_artists
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| song_id | `Integer` | The song ID. |
+| artist_id | `Integer` | The artist ID. |
+| display_order | `Integer` | The display order. |
+| display_title | `String?` | The title of the artist in this song. |
+| role | [`DBRole`](#dbrole) | The role of the artist in the song. |
+
+#### song_authorities
+
+```sql
+UNIQUE(authority, authority_code)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| song_id | `Integer` | The song ID. |
+| authority | [`DBAuthority`](#dbauthority) | The authority that issues the identifier. |
+| authority_code | `String` | The identifier attached to the song. |
+
+#### song_locales
+
+*Note: this table documents the audio locale, not the localized titles.*
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| song_id | `Integer` | The song ID. |
+| locale | [`DBLocale`](#dblocale) | The language code. |
+
+#### song_play_counts
+
+```sql
+UNIQUE(song_id, source_id)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| song_id | `Integer` | The song ID. |
+| source_id | `Integer` | The source ID. |
+| play_count | `Integer` | The play count of the song. |
+| snapshot_date | `Date` | The snapshot date of the play count. |
+
+#### song_titles
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| song_id | `Integer` | The song ID. |
+| fallback | `Boolean` | Is this localization the fallback/primary translation? |
+| locale | [`DBLocale`](#dblocale) | The language code. |
+| title | `String` | The song title in the given language. |
 
 ### Enums
+
+#### DBAlbum
+
+An 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | SINGLE | The single. |
+| 1 | EP | The extended play. |
+| 2 | ALBUM | The album. |
 
 #### DBArtistTag
 
@@ -135,10 +264,35 @@ An 8-bit integer flag enum.
 | 0 | NONE | No tags attached. |
 | 1 | AI | The music is AI-generated. |
 | 2 | SYNTH | The vocalist is a vocal synthesizer, e.g. Hatsune Miku, Kasane Teto, Megurine Luka. |
-| 4 | | *Reserved* |
+| 4 | VTUBER | The vocalist is a vtuber. |
 | 8 | | *Reserved* |
 
-#### DBGenre
+#### DBAuthority
+
+A 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | ISRC | The International Standard Recording Code. |
+| 1 | APPLE_MUSIC | Apple Music. |
+| 2 | ITUNES | ITunes. |
+| 3 | SPOTIFY | Spotify. |
+| 4 | SOUNDCLOUD | Soundcloud. |
+| 5 | YOUTUBE | YouTube. |
+
+#### DBGenreInfo
+
+A 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | NONE | No tags attached. |
+| 1 | DANCE | The genre of the song is influenced by dance music. |
+| 2 | POP | The genre of the song is influenced by pop music. |
+| 3 | RAP | The genre of the song is influenced by rap music. |
+| 4 | ROCK | The genre of the song is influenced by rock music. |
+
+#### DBGenreTag
 
 A 64-bit integer enum. Can be used as a flag enum if needed.
 
@@ -187,18 +341,6 @@ A 64-bit integer enum. Can be used as a flag enum if needed.
 
 *The value from 2<sup>39</sup> all the way to 2<sup>62</sup> are reserved.*
 
-#### DBGenreTag
-
-A 8-bit integer enum.
-
-| Value | Display Title | Description |
-| ----: | ------------- | ----------- |
-| 0 | NONE | No tags attached. |
-| 1 | DANCE | The genre of the song is influenced by dance music. |
-| 2 | POP | The genre of the song is influenced by pop music. |
-| 3 | RAP | The genre of the song is influenced by rap music. |
-| 4 | ROCK | The genre of the song is influenced by rock music. |
-
 #### DBLocale
 
 A 32-bit integer enum. Can be used as a flag enum if needed.
@@ -206,22 +348,22 @@ A 32-bit integer enum. Can be used as a flag enum if needed.
 | Value | Display Title | Description |
 | ----: | ------------- | ----------- |
 | 0 | ZXX | No linguistic content; acoustic. |
-| 1 | EN | English. |
-| 2 | ES | Spanish. |
-| 4 | FR | French. |
-| 8 | HAK | Hakka, including Taiwanese Hakka. |
-| 16 | JA | Japanese. |
-| 32 | KO | Korean. |
-| 64 | HI | Hindi. |
-| 128 | MAP | Austronesian languages, including Taiwanese indigenous languages. |
-| 256 | NAN | Southern Min, including Taiwanese Hokkien. |
-| 512 | TH | Thai. |
-| 1024 | VI | Vietnamese. |
-| 2048 | YUE | Yue, including Hong Kong Cantonese. |
-| 4096 | ZH | Standard Mandarin and Taiwanese Mandarin. |
-| 1073741824 | UND | Undefined language. |
+| 1 | UND | Undefined language. |
+| 2 | EN | English. |
+| 4 | ES | Spanish. |
+| 8 | FR | French. |
+| 16 | HAK | Hakka, including Taiwanese Hakka. |
+| 32 | JA | Japanese. |
+| 64 | KO | Korean. |
+| 128 | HI | Hindi. |
+| 256 | MAP | Austronesian languages, including Taiwanese indigenous languages. |
+| 512 | NAN | Southern Min, including Taiwanese Hokkien. |
+| 1024 | TH | Thai. |
+| 2048 | VI | Vietnamese. |
+| 4096 | YUE | Yue, including Hong Kong Cantonese. |
+| 8192 | ZH | Standard Mandarin and Taiwanese Mandarin. |
 
-*The value from 8192 (2<sup>13</sup>) all the way to 536870912 (2<sup>29</sup>) are reserved.*
+*The value from 16384 (2<sup>14</sup>) all the way to 2<sup>30</sup> are reserved.*
 
 #### DBMediaTag
 
@@ -239,24 +381,52 @@ A 16-bit integer flag enum.
 | 64 | DANCELINE | The track is featured in the rhythm game *Dancing Line*. |
 | 128 | DEEMO | The track is featured in the rhythm game series *Deemo*. |
 | 256 | FNF | The track is featured in the rhythm game *Friday Night Funkin'*. |
-| 128 | LANOTA | The track is featured in the rhythm game *Lanota*. |
-| 256 | PHIGROS | The track is featured in the rhythm game *Phigros*. |
-| 512 | ROTAENO | The track is featured in the rhythm game *Rotaeno*. |
-| 1024 | VOEZ | The track is featured in the rhythm game *Voez*. |
-| 2048 | | *Reserved* |
-| 4096 | | *Reserved* |
+| 512 | LANOTA | The track is featured in the rhythm game *Lanota*. |
+| 1024 | PHIGROS | The track is featured in the rhythm game *Phigros*. |
+| 2048 | ROTAENO | The track is featured in the rhythm game *Rotaeno*. |
+| 4096 | VOEZ | The track is featured in the rhythm game *Voez*. |
 | 8192 | | *Reserved* |
 | 16384 | | *Reserved* |
 
-#### DBRole
+#### DBMethod
+
+A 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | APPLE | Apple Music API ID match. |
+| 1 | EXACT | Exact match. |
+| 2 | FUZZY | Fuzzy match. |
+| 3 | MANUAL | Manual match. |
+
+#### DBRelation
 
 A 8-bit integer enum.
 
 | Value | Display Title | Description |
 | ----: | ------------- | ----------- |
 | 0 | NONE | Undefined role. |
-| 1 | MEMBER | The reference artist is a member of the artist. |
-| 2 | MEMBER_OF | The artist is the member of the reference artist. |
+| 1 | MEMBER_OF | The artist is the member of the reference artist. |
+
+#### DBRole
+
+A 8-bit interger enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | MAIN | The artist is the main artist of the song. |
+| 1 | FEAT | The artist is the featured artist of the song. |
+| 2 | REMIX | The artist is the remixer of the song. |
+
+#### DBStatus
+
+A 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | PENDING | The pending entry mapping pair. |
+| 1 | CONFIRMED | The confirmed entry mapping pair. |
+| 2 | REJECTED | The rejected entry mapping pair. |
 
 #### DBVocal
 
@@ -264,7 +434,7 @@ A 8-bit integer enum.
 
 | Value | Display Title | Description |
 | ----: | ------------- | ----------- |
-| 0 | A | Acoustic. |
-| 1 | F | Female vocalist. |
-| 2 | M | Male vocalist. |
-| 3 | X | Duat vocalist. |
+| 0 | ACOUSTIC | Acoustic. |
+| 1 | FEMALE | Female vocalist. |
+| 2 | MALE | Male vocalist. |
+| 3 | DUET | Duet (female and male) vocalist. |
