@@ -66,7 +66,6 @@ The new schema of the database has the following specifications:
 | artist_id | PRIMARY | `Integer` | The unique ID of the artist. |
 | artist_tag | | [`DBArtistTag`](#dbartisttag) | The extra tag of the artist. |
 | artwork | | `URL?` | The URL to the artist artowrk image. |
-| title | | `String` | The original title of the artist. |
 
 #### entries
 
@@ -353,17 +352,19 @@ A 32-bit integer enum. Can be used as a flag enum if needed.
 | 4 | ES | Spanish. |
 | 8 | FR | French. |
 | 16 | HAK | Hakka, including Taiwanese Hakka. |
-| 32 | JA | Japanese. |
-| 64 | KO | Korean. |
-| 128 | HI | Hindi. |
+| 32 | HI | Hindi. |
+| 64 | JA | Japanese. |
+| 128 | KO | Korean. |
 | 256 | MAP | Austronesian languages, including Taiwanese indigenous languages. |
 | 512 | NAN | Southern Min, including Taiwanese Hokkien. |
 | 1024 | TH | Thai. |
 | 2048 | VI | Vietnamese. |
 | 4096 | YUE | Yue, including Hong Kong Cantonese. |
 | 8192 | ZH | Standard Mandarin and Taiwanese Mandarin. |
+| 16384 | ZH_HANS | Simplified Chinese. |
+| 32768 | ZH_HANT | Traditional Chinese. |
 
-*The value from 16384 (2<sup>14</sup>) all the way to 2<sup>30</sup> are reserved.*
+*The value from 65536 (2<sup>16</sup>) all the way to 2<sup>30</sup> are reserved.*
 
 #### DBMediaTag
 

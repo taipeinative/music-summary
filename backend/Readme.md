@@ -8,6 +8,7 @@ The requirements are:
 
 * Python >= 3.10
 * [beautifulsoup4](https://pypi.org/project/beautifulsoup4/) >= 4.7.0
+* [psycopg](https://pypi.org/project/psycopg/) >= 3.2.0
 * [Requests](https://pypi.org/project/requests/) >= 2.31.0
 
 ## Modules
@@ -103,3 +104,11 @@ Song object:
 | lc | `string?` | The language of the song. |
 | pc | `number` | The play count of the song. |
 | tr | `number` | The track number of the song. |
+
+### Migrate legacy data
+
+**[migrate_artists.py](py/migrate_artists.py)** reads the legacy [artists.json](../data/.legacy/artists.json) data and import them into the PostgreSQL database. The mandatory arguments include the host address (`--host`), the database name (`--dbname`), the user name (`--user`) and their password (`--password`).
+
+```shell
+python .\py\migrate_artists.py --host "localhost" --dbname "music" --user "auto_script" --password "********"
+```
