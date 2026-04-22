@@ -113,18 +113,6 @@ class Localization:
         return '; '.join([f'{self[defined]} <{Localization.literal(defined)}>' for defined in self.defined_locales()])
 
 @dataclass
-class Playlist:
-    '''
-    The playlist info.
-    '''
-    library_id: int
-    name: str
-    tracks: list[int] = field(default_factory = lambda: [])
-
-    def __repr__(self) -> str:
-        return f'Playlist({self.library_id}, {len(self.tracks)} track(s), name: {self.name})'
-
-@dataclass
 class Song(Identity):
     '''
     The track info.

@@ -11,6 +11,11 @@ The requirements are:
 * [psycopg](https://pypi.org/project/psycopg/) >= 3.2.0
 * [Requests](https://pypi.org/project/requests/) >= 2.31.0
 
+Additional requirements when migrating data:
+
+* [openpyxl](https://pypi.org/project/openpyxl/) >= 3.0.10
+* [pandas](https://pypi.org/project/pandas/) >= 2.0.0
+
 ## Modules
 
 ### Fetching Apple Music API
@@ -106,6 +111,12 @@ Song object:
 | tr | `number` | The track number of the song. |
 
 ### Migrate legacy data
+
+**[clean_legacy_songs.py](py/clean_legacy_songs.py)** combines all intermediate library files generated in [taipeinative/apple-music](https://github.com/taipeinative/apple-music) into a single CSV file.
+
+```shell
+python .\py\clean_legacy_songs.py --manual path\to\library.csv --tmm path\to\tmm.csv --xlsx2512 path\to\Library-2025-12.xlsx --xml2504 path\to\2025-04.xml --xml2512 path\to\2025-12.xml --output ..\data\.legacy\library.csv
+```
 
 **[migrate_artists.py](py/migrate_artists.py)** reads the legacy [artists.json](../data/.legacy/artists.json) data and import them into the PostgreSQL database. The mandatory arguments include the host address (`--host`), the database name (`--dbname`), the user name (`--user`) and their password (`--password`).
 
