@@ -4684,7 +4684,7 @@
     "tw": "BoySam",
     "us": "BoySam",
     "thumb": "AMCArtistImages211/v4/dc/ee/68/dcee6881-df89-43a2-11c2-8b2842754201/dfdd05a8-e7f1-4c2c-b572-08e0db74cf42_ami-identity-e9c163a89f04d385849fa2bb87d52dad-2024-08-13T04-24-18.399Z_cropped.png",
-    "locale": "en",
+    "locale": "ko",
     "synth": false,
     "ai": false,
     "alias": [],
@@ -6950,6 +6950,17 @@
         "artistId": "1572624547"
       }
     ]
+  },
+  "1423596231": {
+    "or": "江孟翰",
+    "tw": "江孟翰",
+    "us": "江孟翰",
+    "thumb": null,
+    "locale": "zh-Hant",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
   },
   "1424691140": {
     "or": "Courts",
@@ -9377,6 +9388,17 @@
     "alias": [],
     "roles": []
   },
+  "1568041704": {
+    "or": "Dankidz",
+    "tw": "Dankidz",
+    "us": "Dankidz",
+    "thumb": null,
+    "locale": "ko",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1568653367": {
     "or": "DoubleLift",
     "tw": "DoubleLift",
@@ -9496,17 +9518,6 @@
     "us": "good problem",
     "thumb": "AMCArtistImages116/v4/3d/a2/dc/3da2dc82-ca9c-a0f5-edef-4cfa0c3605f3/14fec2a6-38e0-467a-9c39-fa2e1f251721_ami-identity-93f75daa326c90cd24d901cdbc3fb2d6-2023-09-10T22-09-56.547Z_cropped.png",
     "locale": "en",
-    "synth": false,
-    "ai": false,
-    "alias": [],
-    "roles": []
-  },
-  "1580509412": {
-    "or": "陽春白雪",
-    "tw": "陽春白雪",
-    "us": "Lyrica",
-    "thumb": "Features115/v4/45/e6/50/45e65061-6f6a-878d-c08d-e7027979923a/mzl.ehhowzly.jpg",
-    "locale": "zh-Hant",
     "synth": false,
     "ai": false,
     "alias": [],

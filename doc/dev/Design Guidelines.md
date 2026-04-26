@@ -12,31 +12,47 @@ As of April 2026, I have to deal with **three sources of data**, and their schem
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| Name | `string` | The name of the song. |
-| Apple ID | `number?` | The Apple Music API ID of the song. |
-| Artist | `[string]` | The artist of the song. |
-| Artist ID | `[number]` | The id of the artist of the song. |
-| Disc Number | `number?` | The disc number of the song. |
-| Duration | `string` | The duration of the song. |
-| Genre | `string?` | The genre type of the song. |
-| Genre Previous | `string` | The previous genre type of the song , defined by the artist or manually edited. |
-| ISRC | `string?` | The ISRC of the song. |
-| Play Count 1 | `number?` | The play count of the song in 2020-2025. |
-| Play Count 2 | `number?` | The play count of the song in 2025. |
-| Playlists | `[string]` | The playlists where the song is added. |
-| Language | `string?` | The language of the song. |
-| Tag 1 | `string?` | The extra descripter of the song. |
-| Tag 2 | `string?` | The extra descripter of the song. |
-| Tag 3 | `string?` | The extra descripter of the song. |
-| Track Number | `number?` | The track number of the song. |
-| Vocal | `string?` | The vocal type of the song. |
-| Year | `number?` | The year of the song release date. |
+| legacy_id | `number` | The internal ID within this source. |
+| id 2504 | `number?` | The private library track ID in April 2025. |
+| id 2512 | `number` | The private library track ID in December 2025. |
+| verified | `boolean` | Whether the track's metadata had been verified by me. |
+| library | `boolean` | Whether the track had been added to the library. |
+| name 2504 | `string?` | The name of the song in April 2025. |
+| name 2512 | `string` | The name of the song in December 2025. |
+| artist | `string?` | The comma-separated list of all artist participating in the song, in their Apple Music API ID. Note that a placeholder value `0` indicates the artist has no Apple Music API ID. |
+| artist_label | `string?` | The comma-separated list of all artist participating in the song, in their literal name. |
+| artist_primary 2504 | `string?` | The primary artists of the song in April 2025. |
+| artist_primary 2512 | `string` | The primary artists of the song in December 2025. |
+| album 2504 | `string?` | The album name of the song in April 2025. |
+| album 2512 | `string` | The album name of the song in December 2025. |
+| play_count 2504 | `number` | The total play count of the song as of April 2025. |
+| play_count 2512 | `number` | The total play count of the song as of December 2025. |
+| play_count_deducted | `number` | The deducted number of play count of the song between April 2025 and December 2025. This possibly might be the synchronization issue on Apple Music's side, and these numbers are kept to record the true play count. |
+| play_count_2025 | `number` | The play count accumulated within the year 2025. |
+| disc_number | `number?` | The disc number of the song. |
+| disc_count | `number?` | The disc count of the album that the song belongs to. |
+| track_number | `number?` | The track number of the song. |
+| track_count | `number` | The track count of the disc from the album that the song belongs to. |
+| duration | `number` | The duration of the song. |
+| release_date | `string` | The released date of the song, in the format of `YYYY-MM-DD hh:mm:ss`. |
+| added_date | `string?` | This date appears to be the date added to the library for those tracks in the library, and the export date for those are not in the library. |
+| modified_date | `string` | This date indicates the first date the user "touched" the song, e.g. added to the library or a playlist. |
+| vocal | `string?` | The vocalist type of the song. |
+| locale | `string?` | The primary language used in the song. |
+| genre | `string?` | The genre of the song verified by me. |
+| genre_alt | `string` | The genre of the song suggested by the stream platform. |
+| genre_tag | `string?` | The additional descripters of the genre or media as a comma-separated string. |
+| apple_music | `string?` | The comma-separated string of Apple Music API ID of the song. |
+| isrc | `string?` | The comma-separated string of ISRC code of the song. |
+| album_artwork | `URL?` | The URL to the artwork of the album that the song belongs to. |
 
-*There are 2,566 songs in total, and 1,082 songs among them have been manually verified. 1,057 songs have Apple Music API ID attached.*
+*Since some of the songs were added after April 2025, the fields with suffix 2504 of these entries would be empty.*
+
+*There are 2,625 songs in total, and 1,081 songs among them have been manually verified. 2,410 songs have Apple Music API ID attached.*
 
 #### Source B
 
-See [Fetching Apple Music API](../../backend/Readme.md#schema-of-playlist-json) chapter in `backend\Readme.md`. There are 2,877 songs in total.
+See [Fetching Apple Music API](../../backend/Readme.md#schema-of-playlist-json) chapter in `backend/Readme.md`. There are 2,877 songs in total.
 
 #### Source C
 
@@ -57,6 +73,7 @@ The new schema of the database has the following specifications:
 | album_type | | [`DBAlbum`](#dbalbum) | The type of the album. |
 | artwork | | `URL?` | The URL to the album artwork image. |
 | disc_count | | `Integer?` | The number of discs in the album. |
+| release_date | | `Date?` | The release date of the album. |
 | track_count | | `Integer?` | The number of tracks in the album. |
 
 #### artists
@@ -218,6 +235,7 @@ UNIQUE(authority, authority_code)
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | song_id | `Integer` | The song ID. |
+| is_primary | `Boolean` | Is the locale a primary language of the song? |
 | locale | [`DBLocale`](#dblocale) | The language code. |
 
 #### song_play_counts
