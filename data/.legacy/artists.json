@@ -624,6 +624,17 @@
     "alias": [],
     "roles": []
   },
+  "173122107": {
+    "or": "Paul Mottram",
+    "tw": "Paul Mottram",
+    "us": "Paul Mottram",
+    "thumb": "AMCArtistImages126/v4/cb/c8/6d/cbc86d85-52df-2cbe-3898-f01ce5edfaa6/611a2210-3387-4b46-bc5b-55603cbdab40_ami-identity-db80136305c3b108b4b87e1ef6199cc3-2023-05-23T12-57-48.881Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "183313439": {
     "or": "Ed Sheeran",
     "tw": "Ed Sheeran",
@@ -718,6 +729,17 @@
     "us": "onoken",
     "thumb": null,
     "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "213157068": {
+    "or": "प्रीतम",
+    "tw": "Pritam",
+    "us": "Pritam",
+    "thumb": "Features125/v4/b7/81/a4/b781a447-61de-c71d-ce49-8376b0e9d50f/mzl.mvimvaxi.jpg",
+    "locale": "hi",
     "synth": false,
     "ai": false,
     "alias": [],
@@ -2079,6 +2101,17 @@
     "alias": [],
     "roles": []
   },
+  "414067643": {
+    "or": "Faouzia",
+    "tw": "Faouzia",
+    "us": "Faouzia",
+    "thumb": "AMCArtistImages221/v4/39/f2/9e/39f29ebc-70fb-eded-fcca-b350894d9834/ami-identity-be3393e67e929a6a0fff7279263cf632-2025-11-06T22-16-00.388Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "415606364": {
     "or": "HoneyWorks",
     "tw": "HoneyWorks",
@@ -2476,6 +2509,17 @@
     "alias": [],
     "roles": []
   },
+  "484254148": {
+    "or": "Nina Nesbitt",
+    "tw": "Nina Nesbitt",
+    "us": "Nina Nesbitt",
+    "thumb": "AMCArtistImages116/v4/ad/5a/57/ad5a5740-8b91-499b-7e67-98fe6f27f678/62c38afa-9074-4cb8-9202-3ef736960da4_ami-identity-937618d7ecf39f74df1078f54cf7661b-2024-02-14T12-34-14.948Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "484351634": {
     "or": "HARDCORE TANO*C",
     "tw": "HARDCORE TANO*C",
@@ -2761,6 +2805,28 @@
     "alias": [],
     "roles": []
   },
+  "541805601": {
+    "or": "Duncan Pittock",
+    "tw": "Duncan Pittock",
+    "us": "Duncan Pittock",
+    "thumb": null,
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "541805613": {
+    "or": "Igor Dvorkin",
+    "tw": "Igor Dvorkin",
+    "us": "Igor Dvorkin",
+    "thumb": null,
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "543322169": {
     "or": "Galantis",
     "tw": "Galantis",
@@ -2777,6 +2843,17 @@
     "tw": "Against The Current",
     "us": "Against The Current",
     "thumb": "AMCArtistImages116/v4/33/71/81/337181bf-171c-e603-40e8-beeccda6e9a4/4da2c2af-8d66-4326-80eb-cdaf8d284705_ami-identity-c99a7a1b13a2ad0754ab64480a05202d-2023-04-22T17-06-58.541Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "545566253": {
+    "or": "Ellie Kidd",
+    "tw": "Ellie Kidd",
+    "us": "Ellie Kidd",
+    "thumb": null,
     "locale": "en",
     "synth": false,
     "ai": false,
@@ -2900,6 +2977,17 @@
     "tw": "LiSA",
     "us": "LiSA",
     "thumb": "AMCArtistImages221/v4/e5/79/33/e57933b0-b411-edc7-128d-9520d11a8fd2/ami-identity-f7fe5397d193305ef7f645abb56cd90b-2026-03-17T10-23-39.544Z_cropped.png",
+    "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "573780411": {
+    "or": "花澤香菜",
+    "tw": "花澤香菜",
+    "us": "Kana Hanazawa",
+    "thumb": "Features211/v4/64/67/03/64670356-5f40-493b-90fd-3a5c8c6a96cc/mzl.bwnltlob.jpg",
     "locale": "ja",
     "synth": false,
     "ai": false,
@@ -3766,7 +3854,7 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": ["Ayatsugu_Revolved"],
     "roles": []
   },
   "899224072": {
@@ -4452,6 +4540,17 @@
     "us": "Novelbright",
     "thumb": "AMCArtistImages211/v4/01/69/ce/0169ce2f-3666-e891-6aa3-bcb60ff08783/ami-identity-0875d341dcf8150729cbd27edbaf0687-2024-12-12T00-12-06.609Z_cropped.png",
     "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "1027762154": {
+    "or": "Łukasz Michalski",
+    "tw": "Łukasz Michalski",
+    "us": "Łukasz Michalski",
+    "thumb": null,
+    "locale": "en",
     "synth": false,
     "ai": false,
     "alias": [],
@@ -5241,6 +5340,17 @@
     "alias": [],
     "roles": []
   },
+  "1137851469": {
+    "or": "魏琮霏",
+    "tw": "魏琮霏",
+    "us": "Wei Congfei",
+    "thumb": null,
+    "locale": "zh-Hans",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1139014441": {
     "or": "TRUE",
     "tw": "TRUE",
@@ -5312,6 +5422,17 @@
     "alias": [],
     "roles": []
   },
+  "1148741261": {
+    "or": "Annika Wells",
+    "tw": "Annika Wells",
+    "us": "Annika Wells",
+    "thumb": "AMCArtistImages221/v4/b6/b1/2e/b6b12e87-f0fe-c6e6-dfc8-9b305853c88b/ami-identity-6701daf8de923620e70fb396caaee291-2025-11-07T00-04-43.356Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1151413609": {
     "or": "Streex",
     "tw": "Streex",
@@ -5329,6 +5450,17 @@
     "us": "San Chung Electronic Kong",
     "thumb": null,
     "locale": "zh-Hant",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "1159736220": {
+    "or": "Vishal Mishra",
+    "tw": "Vishal Mishra",
+    "us": "Vishal Mishra",
+    "thumb": "AMCArtistImages221/v4/76/a6/83/76a68306-4847-1e2f-3489-8accfc234def/8093de20-a77d-4ca0-8168-6ae6741efad2_file_cropped.png",
+    "locale": "hi",
     "synth": false,
     "ai": false,
     "alias": [],
@@ -6792,6 +6924,17 @@
     "alias": [],
     "roles": []
   },
+  "1407295384": {
+    "or": "theo5970",
+    "tw": "theo5970",
+    "us": "theo5970",
+    "thumb": null,
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1407376509": {
     "or": "Couple N",
     "tw": "Couple N",
@@ -8012,6 +8155,17 @@
     "tw": "Rachel Leycroft",
     "us": "Rachel Leycroft",
     "thumb": "AMCArtistImages126/v4/b6/cf/1f/b6cf1f27-006c-50f7-f1bd-c28f6a7479e7/110080b7-4a06-4d49-a02a-8454c54c47fa_ami-identity-e8d6510ab5c0a9c13df96a31d823bb5f-2023-02-17T01-18-19.123Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "1478164617": {
+    "or": "American Teeth",
+    "tw": "American Teeth",
+    "us": "American Teeth",
+    "thumb": "AMCArtistImages211/v4/48/30/3a/48303ad1-7246-bff4-4663-fdc69e64cbaa/file_cropped.png",
     "locale": "en",
     "synth": false,
     "ai": false,
@@ -9454,6 +9608,17 @@
     "alias": [],
     "roles": []
   },
+  "1572481482": {
+    "or": "『ユイカ』",
+    "tw": "『ユイカ』",
+    "us": "Yuika",
+    "thumb": "AMCArtistImages221/v4/45/26/61/452661b5-a938-4eb4-79e5-d32cf611193e/ami-identity-be80b860dadbbe44fc4b6658d3bae6ff-2026-05-01T12-38-17.781Z_cropped.png",
+    "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1572624547": {
     "or": "ハコニワリリィ",
     "tw": "ハコニワリリィ",
@@ -10408,6 +10573,17 @@
     "tw": "Severo",
     "us": "Severo",
     "thumb": "AMCArtistImages116/v4/8e/b2/97/8eb29719-0d9c-5e49-576b-08e64f16ebb0/70999107-2a0d-4e41-93bb-163a7cbffc69_ami-identity-b34dafb9258943e2e690bdef6a406736-2024-01-19T18-14-07.292Z_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "1726969991": {
+    "or": "GLITCHDROID",
+    "tw": "GLITCHDROID",
+    "us": "GLITCHDROID",
+    "thumb": null,
     "locale": "en",
     "synth": false,
     "ai": false,
