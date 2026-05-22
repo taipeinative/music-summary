@@ -74,7 +74,6 @@ The new schema of the database has the following specifications:
 | artwork | | `URL?` | The URL to the album artwork image. |
 | disc_count | | `Integer?` | The number of discs in the album. |
 | release_date | | `Date?` | The release date of the album. |
-| track_count | | `Integer?` | The number of tracks in the album. |
 
 #### artists
 
@@ -136,6 +135,10 @@ UNIQUE (authority, authority_code)
 
 #### album_titles
 
+```sql
+UNIQUE (album_id, locale)
+```
+
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | album_id | `Integer` | The album ID. |
@@ -155,6 +158,18 @@ UNIQUE (album_id, disc_number, track_number)
 | song_id | `Integer` | The song ID. |
 | disc_number | `Integer` | The disc number of the song. |
 | track_number | `Integer` | The track number of the song. |
+
+#### album_track_counts
+
+```sql
+UNIQUE (album_id, disc_number)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| album_id | `Integer` | The album ID. |
+| disc_number | `Integer` | The disc number. |
+| track_count | `Integer` | The number of tracks in the disc. |
 
 #### artist_alias
 
@@ -253,7 +268,7 @@ UNIQUE (authority, authority_code)
 #### song_play_counts
 
 ```sql
-UNIQUE (song_id, source_id)
+UNIQUE (song_id, source_id, snapshot_date)
 ```
 
 | Field | Type | Description |
@@ -264,6 +279,10 @@ UNIQUE (song_id, source_id)
 | snapshot_date | `Date` | The snapshot date of the play count. |
 
 #### song_titles
+
+```sql
+UNIQUE (song_id, locale)
+```
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -308,6 +327,8 @@ A 8-bit integer enum.
 | 3 | SPOTIFY | Spotify. |
 | 4 | SOUNDCLOUD | Soundcloud. |
 | 5 | YOUTUBE | YouTube. |
+| 6 | DISCOGS | Discogs. |
+| 7 | RATEYOURMUSIC | Rate Your Music. |
 
 #### DBGenreInfo
 
@@ -469,3 +490,4 @@ A 8-bit integer enum.
 | 1 | FEMALE | Female vocalist. |
 | 2 | MALE | Male vocalist. |
 | 3 | DUET | Duet (female and male) vocalist. |
+| 4 | UNKNOWN | Vocal status unknown. |
