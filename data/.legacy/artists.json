@@ -4290,7 +4290,12 @@
     "synth": false,
     "ai": false,
     "alias": [],
-    "roles": []
+    "roles": [
+      {
+        "role": "Member of",
+        "artistId": "1527653416"
+      }
+    ]
   },
   "979965147": {
     "or": "Ilsey",
@@ -4622,7 +4627,12 @@
     "synth": false,
     "ai": false,
     "alias": [],
-    "roles": []
+    "roles": [
+      {
+        "role": "Member of",
+        "artistId": "1527653416"
+      }
+    ]
   },
   "1033676377": {
     "or": "Emily McNally",
@@ -5695,7 +5705,12 @@
     "synth": false,
     "ai": false,
     "alias": [],
-    "roles": []
+    "roles": [
+      {
+        "role": "Member of",
+        "artistId": "1527653416"
+      }
+    ]
   },
   "1196418866": {
     "or": "RUNN",
@@ -6603,7 +6618,12 @@
     "synth": false,
     "ai": false,
     "alias": [],
-    "roles": []
+    "roles": [
+      {
+        "role": "Member of",
+        "artistId": "1527653416"
+      }
+    ]
   },
   "1370606286": {
     "or": "RYYZN",
@@ -9013,6 +9033,34 @@
     "ai": false,
     "alias": [],
     "roles": []
+  },
+  "1527653416": {
+    "or": "Winamp Boys",
+    "tw": "Winamp Boys",
+    "us": "Winamp Boys",
+    "thumb": null,
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": [
+      {
+        "role": "Member",
+        "artistId": "978885336"
+      },
+      {
+        "role": "Member",
+        "artistId": "1033204051"
+      },
+      {
+        "role": "Member",
+        "artistId": "1193247275"
+      },
+      {
+        "role": "Member",
+        "artistId": "1366383804"
+      }
+    ]
   },
   "1527713540": {
     "or": "HYPERLOCK",

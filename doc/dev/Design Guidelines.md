@@ -48,7 +48,7 @@ As of April 2026, I have to deal with **three sources of data**, and their schem
 
 *Since some of the songs were added after April 2025, the fields with suffix 2504 of these entries would be empty.*
 
-*There are 2,625 songs in total, and 1,081 songs among them have been manually verified. 2,410 songs have Apple Music API ID attached.*
+*There are 2,625 songs in total, and 1,162 songs among them have been manually verified. 2,412 songs have Apple Music API ID attached.*
 
 #### Source B
 
@@ -125,7 +125,7 @@ The new schema of the database has the following specifications:
 #### album_authorities
 
 ```sql
-UNIQUE(authority, authority_code)
+UNIQUE (authority, authority_code)
 ```
 
 | Field | Type | Description |
@@ -146,7 +146,7 @@ UNIQUE(authority, authority_code)
 #### album_tracks
 
 ```sql
-UNIQUE(album_id, disc_number, track_number)
+UNIQUE (album_id, disc_number, track_number)
 ```
 
 | Field | Type | Description |
@@ -158,6 +158,10 @@ UNIQUE(album_id, disc_number, track_number)
 
 #### artist_alias
 
+```sql
+UNIQUE (artist_id, alias)
+```
+
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | artist_id | `Integer` | The artist ID. |
@@ -166,7 +170,7 @@ UNIQUE(album_id, disc_number, track_number)
 #### artist_authorities
 
 ```sql
-UNIQUE(authority, authority_code)
+UNIQUE (authority, authority_code)
 ```
 
 | Field | Type | Description |
@@ -177,6 +181,10 @@ UNIQUE(authority, authority_code)
 
 #### artist_relations
 
+```sql
+UNIQUE (artist_id, ref_artist_id, relation_to_ref)
+```
+
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | artist_id | `Integer` | The artist ID. |
@@ -184,6 +192,10 @@ UNIQUE(authority, authority_code)
 | relation_to_ref | [`DBRelation`](#dbrelation) | The relation of the artist to the reference artist. |
 
 #### artist_titles
+
+```sql
+UNIQUE (artist_id, locale)
+```
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -195,7 +207,7 @@ UNIQUE(authority, authority_code)
 #### entry_mapping
 
 ```sql
-UNIQUE(entry_id, song_id)
+UNIQUE (entry_id, song_id)
 ```
 
 | Field | Type | Description |
@@ -219,7 +231,7 @@ UNIQUE(entry_id, song_id)
 #### song_authorities
 
 ```sql
-UNIQUE(authority, authority_code)
+UNIQUE (authority, authority_code)
 ```
 
 | Field | Type | Description |
@@ -241,7 +253,7 @@ UNIQUE(authority, authority_code)
 #### song_play_counts
 
 ```sql
-UNIQUE(song_id, source_id)
+UNIQUE (song_id, source_id)
 ```
 
 | Field | Type | Description |
