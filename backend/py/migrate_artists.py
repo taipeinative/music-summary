@@ -16,6 +16,8 @@ ARTISTS_TABLE = """--sql
         artist_id serial NOT NULL,
         artist_tag smallint NOT NULL,
         artwork text,
+        created_at timestamp WITH TIME ZONE NOT NULL default now(),
+        updated_at timestamp WITH TIME ZONE NOT NULL default now(),
         PRIMARY KEY (artist_id)
     );
 """
@@ -89,6 +91,59 @@ def create_artist(connection: psycopg.Connection, data: dict) -> int:
 def create_table(connection: psycopg.Connection, table_sql: LiteralString) -> None:
     with connection.cursor() as cur:
         cur.execute(table_sql)
+
+def create_view(connection: psycopg.Connection) -> None:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            CREATE OR REPLACE VIEW artist_overview AS
+            SELECT
+                a.artist_id,
+
+                -- fallback title
+                t.locale,
+                t.title,
+
+                -- zh-Hant title if exists, otherwise fallback title
+                COALESCE(t_zh.title, t.title) AS title_zh_hant,
+
+                -- aliases as text[]
+                COALESCE(al.aliases, ARRAY[]::text[]) AS alias,
+
+                a.artist_tag,
+
+                -- Apple Music ID
+                am.authority_code AS apple_music_id,
+
+                a.updated_at,
+                a.artwork
+
+            FROM artists a
+
+            -- fallback title
+            LEFT JOIN artist_titles t
+                ON a.artist_id = t.artist_id
+            AND t.fallback = true
+
+            -- zh-Hant title
+            LEFT JOIN artist_titles t_zh
+                ON a.artist_id = t_zh.artist_id
+            AND t_zh.locale = 32768
+
+            -- aggregate aliases
+            LEFT JOIN (
+                SELECT
+                    artist_id,
+                    array_agg(alias ORDER BY alias) AS aliases
+                FROM artist_alias
+                GROUP BY artist_id
+            ) al
+                ON a.artist_id = al.artist_id
+
+            -- Apple Music authority
+            LEFT JOIN artist_authorities am
+                ON a.artist_id = am.artist_id
+            AND am.authority = 1;
+        """)
 
 def get_artist_by_apple_id(connection: psycopg.Connection, apple_id: str) -> int | None:
     with connection.cursor() as cur:
@@ -216,6 +271,8 @@ def main():
 
             for artist in artists:
                 insert_artist_relations(conn, artist['music_id'], artist, apple_to_db_map)
+            
+            create_view(conn)
 
     except Exception as ex:
         parser.error(str(ex))

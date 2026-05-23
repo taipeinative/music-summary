@@ -158,17 +158,6 @@
     "alias": [],
     "roles": []
   },
-  "3635517": {
-    "or": "Lama",
-    "tw": "Lama",
-    "us": "Lama",
-    "thumb": "Features114/v4/b4/a4/50/b4a450dd-6b79-568f-36d0-986f3609b52c/mzl.bqzgywca.jpeg",
-    "locale": "en",
-    "synth": false,
-    "ai": false,
-    "alias": [],
-    "roles": []
-  },
   "3954172": {
     "or": "Abandoned",
     "tw": "Abandoned",
@@ -887,6 +876,19 @@
     "synth": false,
     "ai": false,
     "alias": [],
+    "roles": []
+  },
+  "257457344": {
+    "or": "Tobias Gustafsson",
+    "tw": "Tobias Gustafsson",
+    "us": "Tobias Gustafsson",
+    "thumb": "Features116/v4/d0/e7/63/d0e7635d-4429-567f-9fce-a8350bd2dd5d/mzl.glbxfjpq.jpg",
+    "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [
+      "Tobias Gustavsson"
+    ],
     "roles": []
   },
   "259027262": {
@@ -2150,6 +2152,17 @@
     "alias": [],
     "roles": []
   },
+  "419866465": {
+    "or": "lama",
+    "tw": "lama",
+    "us": "lama",
+    "thumb": "AMCArtistImages116/v4/75/49/66/754966b5-39a8-8bc0-51fb-b22fd8eb707b/133cffc9-e20e-4593-9412-4655fc3da0fd_file_cropped.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "423727068": {
     "or": "96猫",
     "tw": "96貓",
@@ -2298,6 +2311,17 @@
     "tw": "DubVision",
     "us": "DubVision",
     "thumb": "Music125/v4/f6/0d/90/f60d9052-73fc-1733-ad09-f8e062878c58/pr_source.png",
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
+  "458458032": {
+    "or": "CaptainSparklez",
+    "tw": "CaptainSparklez",
+    "us": "CaptainSparklez",
+    "thumb": null,
     "locale": "en",
     "synth": false,
     "ai": false,
@@ -2670,7 +2694,9 @@
     "locale": "ko",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "HyuN"
+    ],
     "roles": []
   },
   "502578404": {
@@ -2747,7 +2773,9 @@
     "locale": "zh-Hant",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "KillerBlood"
+    ],
     "roles": []
   },
   "519186020": {
@@ -4043,7 +4071,9 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "moimoi"
+    ],
     "roles": []
   },
   "951307925": {
@@ -4164,7 +4194,9 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "Official HIGE DANdism"
+    ],
     "roles": []
   },
   "960798013": {
@@ -4371,7 +4403,9 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "SK MUSIC"
+    ],
     "roles": []
   },
   "987965276": {
@@ -5778,6 +5812,17 @@
     "alias": [],
     "roles": []
   },
+  "1207185675": {
+    "or": "Yalu",
+    "tw": "Yalu",
+    "us": "Yalu",
+    "thumb": null,
+    "locale": "zh-Hant",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1208888794": {
     "or": "Kohta Yamamoto",
     "tw": "Kohta Yamamoto",
@@ -5920,7 +5965,9 @@
     "locale": "fr",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "HATIK"
+    ],
     "roles": []
   },
   "1237729767": {
@@ -6030,7 +6077,9 @@
     "locale": "en",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "Hylia"
+    ],
     "roles": []
   },
   "1259244730": {
@@ -7786,17 +7835,6 @@
     "alias": [],
     "roles": []
   },
-  "1462123139": {
-    "or": "Nila",
-    "tw": "Nila",
-    "us": "Nila",
-    "thumb": null,
-    "locale": "en",
-    "synth": false,
-    "ai": false,
-    "alias": [],
-    "roles": []
-  },
   "1462475034": {
     "or": "SABAI",
     "tw": "SABAI",
@@ -8998,7 +9036,9 @@
     "locale": "en",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "CliqTrack"
+    ],
     "roles": []
   },
   "1522648583": {
@@ -9510,7 +9550,9 @@
     "locale": "en",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "Cashew"
+    ],
     "roles": []
   },
   "1564240431": {
@@ -10668,7 +10710,9 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "suu"
+    ],
     "roles": []
   },
   "1735766987": {
@@ -10815,14 +10859,16 @@
     "roles": []
   },
   "1785121694": {
-    "or": "蒼狼 ルナ",
-    "tw": "蒼狼 ルナ",
+    "or": "蒼狼ルナ",
+    "tw": "蒼狼ルナ",
     "us": "Luna Aokami",
     "thumb": null,
     "locale": "ja",
     "synth": false,
     "ai": true,
-    "alias": [],
+    "alias": [
+      "蒼狼 ルナ"
+    ],
     "roles": []
   },
   "1791254857": {

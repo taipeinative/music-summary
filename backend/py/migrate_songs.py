@@ -4,11 +4,13 @@ import argparse
 from collections.abc import Callable
 import csv
 from datetime import datetime
+import itertools
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, LiteralString
+import re
 
-from music_db.typing import DBAuthority, DBGenreInfo, DBGenreTag, DBLocale, DBMediaTag, DBMethod, DBStatus, DBVocal
+from music_db.typing import DBArtistTag, DBAuthority, DBGenreInfo, DBGenreTag, DBLocale, DBMediaTag, DBMethod, DBRole, DBStatus, DBVocal
 import psycopg
 
 HERE = Path(__file__).resolve().parent
@@ -21,6 +23,8 @@ ALBUMS_TABLE = """--sql
         artwork text,
         disc_count smallint,
         release_date date,
+        created_at timestamp WITH TIME ZONE NOT NULL default now(),
+        updated_at timestamp WITH TIME ZONE NOT NULL default now(),
         PRIMARY KEY (album_id)
     );
 """
@@ -52,7 +56,7 @@ ALBUM_TRACKS_TABLE = """--sql
     CREATE TABLE IF NOT EXISTS album_tracks
     (
         album_id integer NOT NULL,
-        song_id integer NOT NULL
+        song_id integer NOT NULL,
         disc_number smallint NOT NULL,
         track_number integer NOT NULL,
         UNIQUE (album_id, disc_number, track_number),
@@ -65,10 +69,66 @@ ALBUM_TRACK_COUNTS_TABLE = """--sql
     CREATE TABLE IF NOT EXISTS album_track_counts
     (
         album_id integer NOT NULL,
-        disc_number smallint NOT NULL
+        disc_number smallint NOT NULL,
         track_count integer NOT NULL,
         UNIQUE (album_id, disc_number),
         FOREIGN KEY (album_id) REFERENCES albums(album_id)
+    );
+"""
+
+ARTISTS_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS artists
+    (
+        artist_id serial NOT NULL,
+        artist_tag smallint NOT NULL,
+        artwork text,
+        created_at timestamp WITH TIME ZONE NOT NULL default now(),
+        updated_at timestamp WITH TIME ZONE NOT NULL default now(),
+        PRIMARY KEY (artist_id)
+    );
+"""
+
+ARTIST_ALIAS_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS artist_alias
+    (
+        artist_id integer NOT NULL,
+        alias text NOT NULL,
+        UNIQUE (artist_id, alias),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
+    );
+"""
+
+ARTIST_AUTHORITIES_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS artist_authorities
+    (
+        artist_id integer NOT NULL,
+        authority smallint NOT NULL,
+        authority_code text NOT NULL,
+        UNIQUE (authority, authority_code),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
+    );
+"""
+
+ARTIST_RELATIONS_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS artist_relations
+    (
+        artist_id integer NOT NULL,
+        ref_artist_id integer NOT NULL,
+        relation_to_ref smallint NOT NULL,
+        UNIQUE (artist_id, ref_artist_id, relation_to_ref),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
+    );
+"""
+
+ARTIST_TITLES_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS artist_titles
+    (
+        artist_id integer NOT NULL,
+        fallback boolean NOT NULL DEFAULT false,
+        locale integer NOT NULL DEFAULT 1,
+        title text NOT NULL,
+        UNIQUE (artist_id, locale),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
     );
 """
 
@@ -84,7 +144,7 @@ ENTRIES_TABLE = """--sql
         raw_json json NOT NULL,
         raw_title text NOT NULL,
         PRIMARY KEY (entry_id),
-        UNIQUE (source_id, siurce_item_id),
+        UNIQUE (source_id, source_item_id),
         FOREIGN KEY (source_id) REFERENCES sources(source_id)
     );
 """
@@ -97,8 +157,9 @@ ENTRY_MAPPING_TABLE = """--sql
         confidence real NOT NULL,
         match_method smallint NOT NULL,
         status smallint NOT NULL,
+        created_at timestamp WITH TIME ZONE NOT NULL default now(),
         UNIQUE (entry_id, song_id),
-        FOREIGN KEY (entry_id) REFERENCES entries(entry_id)
+        FOREIGN KEY (entry_id) REFERENCES entries(entry_id),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
 """
@@ -114,6 +175,8 @@ SONGS_TABLE = """--sql
         media_tag integer NOT NULL,
         release_date date,
         vocal smallint NOT NULL,
+        created_at timestamp WITH TIME ZONE NOT NULL default now(),
+        updated_at timestamp WITH TIME ZONE NOT NULL default now(),
         PRIMARY KEY (song_id)
     );
 """
@@ -126,7 +189,8 @@ SONG_ARTISTS_TABLE = """--sql
         display_order smallint NOT NULL,
         display_title text,
         role smallint NOT NULL,
-        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
+        UNIQUE (song_id, display_order),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
 """
@@ -205,20 +269,25 @@ class LegacySongs:
                         source[key] = None
                     else:
                         source[key] = func(source[key])
-                except:
+                except ValueError:
                     raise ValueError(f'Can\'t apply func to `{source[key]}` in column `{key}`.')
             else:
                 raise ValueError(f'Can\'t find the column `{key}`.')
 
     @staticmethod
     def _format(row: dict[str, str]) -> dict[str, Any]:
+        def to_bool(input: str) -> bool:
+            if input.lower() == 'true':
+                return True
+            return False
+
         def to_iso_date(input: str) -> datetime | None:
             if input == '':
                 return None
             try:
                 parsed = datetime.strptime(input, '%Y-%m-%d %H:%M:%S')
                 return parsed
-            except:
+            except ValueError:
                 raise ValueError()
 
         def to_nullable_string(input: str) -> str | None:
@@ -227,7 +296,7 @@ class LegacySongs:
             return input
 
         result: dict[str, Any] = row.copy()
-        LegacySongs._apply(result, LegacySongs.BOOL_COLUMNS, bool)
+        LegacySongs._apply(result, LegacySongs.BOOL_COLUMNS, to_bool)
         LegacySongs._apply(result, LegacySongs.DATE_COLUMNS, to_iso_date)
         LegacySongs._apply(result, LegacySongs.INTEGER_COLUMNS, int)
         LegacySongs._apply(result, LegacySongs.STRING_COLUMNS, to_nullable_string)
@@ -265,28 +334,6 @@ class LegacySongs:
                 return f'https://is1-ssl.mzstatic.com/image/thumb/{input}'
             else:
                 raise ValueError()
-            
-        def to_comma_separated_list(input: str | None) -> list[str]:
-            if input is None:
-                return []
-            
-            protected = {}
-            for i in range(len(whitelist)):
-                candidate = whitelist[i]
-                if candidate in input:
-                    key = f'--PROTECTED-KEYWORD-{i}--'
-                    protected[key] = candidate
-                    input = input.replace(candidate, key)
-            
-            parts = input.split(',')
-            result = []
-            for part in parts:
-                part = part.strip()
-                if part in protected:
-                    result.append(protected[part])
-                elif part:
-                    result.append(part)
-            return result
 
         def to_dbgenretag(input: str | None) -> DBGenreTag:
             if isinstance(input, str):
@@ -311,8 +358,9 @@ class LegacySongs:
                 return obj.isoformat()
             raise TypeError()
         
+        for column in ['artist', 'artist_label', 'genre_tag', 'apple_music', 'isrc']:
+            row[column] = to_comma_separated_list(row[column], whitelist)
         LegacySongs._apply(row, ['album_artwork'], to_apple_music_artwork_url, nullable = True)
-        LegacySongs._apply(row, ['artist', 'artist_label', 'genre_tag', 'apple_music', 'isrc'], to_comma_separated_list, nullable = True)
 
         result = row.copy()
         result['genre'] = to_dbgenretag(row['genre'])
@@ -335,3 +383,293 @@ class LegacySongs:
                 results.append(result)
         
         return results
+
+def create_artist(connection: psycopg.Connection, artist_name: str, apple_id: str | None) -> int:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO artists (artist_tag)
+            VALUES (%s)
+            RETURNING artist_id
+        """, (DBArtistTag.NONE.value,))
+        artist_id = cur.fetchone()[0]   # type: ignore
+
+        cur.execute("""--sql
+            INSERT INTO artist_titles (artist_id, fallback, locale, title)
+            VALUES (%s, %s, %s, %s)
+        """, (artist_id, True, DBLocale.UND.value, artist_name))
+
+        if apple_id and (apple_id != '0'):
+            cur.execute("""--sql
+                INSERT INTO artist_authorities (artist_id, authority, authority_code)
+                VALUES (%s, %s, %s)
+            """, (artist_id, DBAuthority.APPLE_MUSIC.value, apple_id))
+    
+    return int(artist_id)
+
+def create_table(connection: psycopg.Connection, table_sql: LiteralString) -> None:
+    with connection.cursor() as cur:
+        cur.execute(table_sql)
+
+def get_artist_by_apple_id(connection: psycopg.Connection, apple_id: str) -> int | None:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT artist_id
+            FROM artist_authorities
+            WHERE authority = %s
+              AND authority_code = %s
+        """, (DBAuthority.APPLE_MUSIC.value, apple_id))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+def get_artist_by_name(connection: psycopg.Connection, artist_name: str) -> int | None:
+    with connection.cursor() as cur:
+        # 1. Exact title search:
+        cur.execute("""--sql
+            SELECT artist_id FROM artist_titles WHERE title = %s
+            UNION
+            SELECT artist_id FROM artist_alias WHERE alias = %s
+        """, (artist_name, artist_name))
+
+        rows = cur.fetchall()
+        if len(rows) > 0:
+            if len(rows) > 1:
+                print(f'Warning: \"{artist_name}\" has multiple exact matches with these artists - {", ".join([str(row[0]) for row in rows if rows[0]])}')
+            return rows[0][0] if rows[0] else None
+
+        # 2. Case-insensitive search:
+        cur.execute("""--sql
+            SELECT artist_id FROM artist_titles WHERE title ILIKE %s
+            UNION
+            SELECT artist_id FROM artist_alias WHERE alias ILIKE %s
+        """, (artist_name, artist_name))
+
+        rows = cur.fetchall()
+        if len(rows) > 0:
+            if len(rows) > 1:
+                print(f'Warning: \"{artist_name}\" has multiple similar matches with these artists - {", ".join([str(row[0]) for row in rows if rows[0]])}')
+            return rows[0][0] if rows[0] else None
+        
+        return None
+
+def infer_artist_role(artist_name: str, song_title: str, credit_text: str) -> DBRole:
+    sanitized = re.escape(artist_name)
+
+    # Matches: "(ABC remix)" "[ABC remix]"
+    remix_pattern = re.compile(r'[\(\[][^\)\]]*?' + sanitized + r'[^\)\]]*?remix[^\)\]]*?[\)\]]', re.IGNORECASE)
+    if remix_pattern.search(song_title):
+        return DBRole.REMIX
+    
+    # Matches: "(ABC)" "[ABC]" "(feat. ABC)"
+    parentheis_pattern = re.compile(r'[\(\[][^\)\]]*?' + sanitized + r'[^\)\]]*?[\)\]]', re.IGNORECASE)
+    if parentheis_pattern.search(song_title):
+        return DBRole.FEAT
+    
+    # Matches: "ft. ABC" "feat ABC" "with ABC"
+    feat_pattern = re.compile(r'(?:feat\.?|ft\.?|featuring|with).* ' + sanitized + r'(?=\)|\]|,| |$)', re.IGNORECASE)
+    if feat_pattern.search(song_title):
+        return DBRole.FEAT
+    
+    if artist_name.lower() not in credit_text.lower():
+        return DBRole.FEAT
+    
+    return DBRole.MAIN
+
+def insert_entry(connection: psycopg.Connection, record: dict[str, Any], source_id: int) -> int:
+    legacy_id: int = record.get('legacy_id', 0)
+    raw_album: str = record.get('album 2512', '').lower()
+    raw_duration: int = record.get('duration', 0)
+    raw_json: str = record.get('raw_json', '{}')
+    raw_title: str = record.get('name 2512', '').lower()
+
+    raw_artists = record.get('artist_label', [])
+    if len(raw_artists) == 0:
+        raw_artists = to_comma_separated_list(record.get('artist_primary 2512', ''), LegacySongs.WHITELIST)
+    raw_artist = ', '.join(raw_artists).lower()
+    
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO entries (source_id, source_item_id, raw_album, raw_artist, raw_duration, raw_json, raw_title)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING entry_id
+        """, (source_id, legacy_id, raw_album, raw_artist, raw_duration, raw_json, raw_title))
+        entry_id = cur.fetchone()[0]    # type: ignore
+    
+    return int(entry_id)
+
+def insert_song_data(connection: psycopg.Connection, record: dict[str, Any], entry_id: int) -> None:
+    song_id = insert_verified_song(connection, record, entry_id)
+    insert_song_artists(connection, record, song_id)
+
+def insert_song_artists(connection: psycopg.Connection, record: dict[str, Any], song_id: int):
+    artist_apple_ids: list[str] = record.get('artist', [])
+    artist_display_names: list[str] = record.get('artist_label', [])
+    artist_raw_text: str = record.get('artist_primary 2512', '')
+    song_title: str = record.get('name 2512', '')
+    display_order = 1
+
+    combined_artists = list(itertools.zip_longest(artist_display_names, artist_apple_ids, fillvalue = ''))
+    for artist_name, artist_apple_id in combined_artists:
+        if not artist_name:
+            continue
+
+        artist_id = None
+
+        # 1. Find ID by Apple Music artist ID:
+        if artist_apple_id and artist_apple_id != '0':
+            artist_id = get_artist_by_apple_id(connection, artist_apple_id)
+
+        # 2. Find ID by artist title:
+        if artist_id is None:
+            artist_id = get_artist_by_name(connection, artist_name)
+
+        # 3. Create new artist if still no match:
+        if artist_id is None:
+            artist_id = create_artist(connection, artist_name, artist_apple_id if (artist_apple_id and (artist_apple_id != '0')) else None)
+
+        # 4. Determine display_title:
+        display_title = None if is_artist_name_known(connection, artist_id, artist_name) else artist_name
+
+        # 5. Infer artist role:
+        role = infer_artist_role(artist_name, song_title, artist_raw_text)
+
+        with connection.cursor() as cur:
+            cur.execute("""--sql
+                INSERT INTO song_artists (song_id, artist_id, display_order, display_title, role)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (song_id, artist_id, display_order, display_title, role.value))
+        
+        display_order += 1
+
+def insert_verified_song(connection: psycopg.Connection, record: dict[str, Any], entry_id: int) -> int:
+    duration: int = record.get('duration', 0)
+    genre_tag: DBGenreTag = record.get('genre_tag', DBGenreTag.NONE)
+    genre_info: DBGenreInfo = record.get('genre_info', DBGenreInfo.NONE)
+    media_tag: DBMediaTag = record.get('media_tag', DBMediaTag.NONE)
+    release_date: datetime | None = record.get('release_date')
+    vocal: DBVocal = record.get('vocal', DBVocal.UNKNOWN)
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO songs (duration, genre_tag, genre_info, media_tag, release_date, vocal)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING song_id
+        """, (duration, genre_tag.value, genre_info.value, media_tag.value, release_date, vocal.value))
+        song_id = cur.fetchone()[0]     # type: ignore
+
+        cur.execute("""--sql
+            INSERT INTO entry_mapping (entry_id, song_id, confidence, match_method, status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (entry_id, song_id, 1., DBMethod.MANUAL.value, DBStatus.CONFIRMED.value))
+
+    return song_id
+
+def is_artist_name_known(connection: psycopg.Connection, artist_id: int, artist_name: str) -> bool:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT 1 FROM artist_titles WHERE artist_id = %s AND title = %s
+            UNION
+            SELECT 1 FROM artist_alias WHERE artist_id = %s AND alias = %s
+        """, (artist_id, artist_name, artist_id, artist_name))
+        return cur.fetchone() is not None
+
+def register_source(connection: psycopg.Connection) -> int:
+    export_date = datetime.strptime('2025-12-28 00:00:00', '%Y-%m-%d %H:%M:%S')
+    import_date = datetime.now()
+    source_file = r'data/.legacy/library.csv'
+    source_type = DBAuthority.ITUNES.value
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO sources (export_date, import_date, source_file, source_type)
+            VALUES (%s, %s, %s, %s)
+            RETURNING source_id
+        """, (export_date, import_date, source_file, source_type))
+        source_id = cur.fetchone()[0]   # type: ignore
+
+    return int(source_id)   
+
+def to_comma_separated_list(input: str | None, whitelist: list[str]) -> list[str]:
+        if input is None:
+            return []
+        
+        protected = {}
+        for i in range(len(whitelist)):
+            candidate = whitelist[i]
+            if candidate in input:
+                key = f'--PROTECTED-KEYWORD-{i}--'
+                protected[key] = candidate
+                input = input.replace(candidate, key)
+        
+        parts = re.split(r',|&', input)
+        result = []
+        for part in parts:
+            part = part.strip()
+            if part in protected:
+                result.append(protected[part])
+            elif part:
+                result.append(part)
+        return result
+
+def main():
+    parser = argparse.ArgumentParser(description = 'Migrate library.csv file to the new database.')
+    parser.add_argument('--host', required = True, help = 'Host server address.')
+    parser.add_argument('--dbname', required = True, help = 'The database name.')
+    parser.add_argument('--user', required = True, help = 'The user name.')
+    parser.add_argument('--password', required = True, help = 'The password of the user.')
+
+    args = parser.parse_args()
+
+    try:
+        songs = LegacySongs.read(HERE / Path(r'..\..\data\.legacy\library.csv'))
+
+        with psycopg.connect(
+            host = args.host,
+            dbname = args.dbname,
+            user = args.user,
+            password = args.password
+        ) as conn:
+            
+            # 1. Register source metadata
+            create_table(conn, SOURCES_TABLE)
+            source_id = register_source(conn)
+
+            # 2. Load entries
+            entry_id_map = {}
+            create_table(conn, ENTRIES_TABLE)
+            for song in songs:
+                legacy_id: int = song.get('legacy_id', 0)
+                entry_id = insert_entry(conn, song, source_id)
+                entry_id_map[legacy_id] = entry_id
+
+            # 3. Fill verified entries
+            create_table(conn, ARTISTS_TABLE) 
+            create_table(conn, ARTIST_ALIAS_TABLE)
+            create_table(conn, ARTIST_AUTHORITIES_TABLE)
+            create_table(conn, ARTIST_RELATIONS_TABLE)
+            create_table(conn, ARTIST_TITLES_TABLE)
+            create_table(conn, SONGS_TABLE)
+            create_table(conn, SONG_ARTISTS_TABLE)
+            create_table(conn, SONG_AUTHORITIES_TABLE)
+            create_table(conn, SONG_LOCALES)
+            create_table(conn, SONG_PLAY_COUNTS_TABLE)
+            create_table(conn, SONG_TITLES_TABLE)
+            create_table(conn, ALBUMS_TABLE)
+            create_table(conn, ALBUM_AUTHORITIES_TABLE)
+            create_table(conn, ALBUM_TITLES_TABLE)
+            create_table(conn, ALBUM_TRACK_COUNTS_TABLE)
+            create_table(conn, ALBUM_TRACKS_TABLE)
+            create_table(conn, ENTRY_MAPPING_TABLE)
+            for song in songs:
+                verified = song.get('verified')
+                if verified:
+                    legacy_id = song.get('legacy_id', 0)
+                    insert_song_data(conn, song, entry_id_map[legacy_id])
+
+    except Exception as ex:
+        parser.error(str(ex))
+        return 2
+    
+    return 0
+
+if __name__ == '__main__':
+    main()

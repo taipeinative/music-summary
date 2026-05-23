@@ -74,6 +74,8 @@ The new schema of the database has the following specifications:
 | artwork | | `URL?` | The URL to the album artwork image. |
 | disc_count | | `Integer?` | The number of discs in the album. |
 | release_date | | `Date?` | The release date of the album. |
+| created_at | | `Timestamp` | The timestamp of the entry creation. |
+| updated_at | | `Timestamp` | The timestamp of the last entry update. |
 
 #### artists
 
@@ -82,6 +84,8 @@ The new schema of the database has the following specifications:
 | artist_id | PRIMARY | `Integer` | The unique ID of the artist. |
 | artist_tag | | [`DBArtistTag`](#dbartisttag) | The extra tag of the artist. |
 | artwork | | `URL?` | The URL to the artist artowrk image. |
+| created_at | | `Timestamp` | The timestamp of the entry creation. |
+| updated_at | | `Timestamp` | The timestamp of the last entry update. |
 
 #### entries
 
@@ -108,6 +112,8 @@ The new schema of the database has the following specifications:
 | media_tag | | [`DBMediaTag`](#dbmediatag) | The additional info on the song media. |
 | release_date | | `Date?` | The release date of the song. |
 | vocal | | [`DBVocal`](#dbvocal) | The vocal type of the song. |
+| created_at | | `Timestamp` | The timestamp of the entry creation. |
+| updated_at | | `Timestamp` | The timestamp of the last entry update. |
 
 #### sources
 
@@ -232,8 +238,13 @@ UNIQUE (entry_id, song_id)
 | confidence | `Float` | The confidence of the match. |
 | match_method | [`DBMethod`](#dbmethod) | The method to match the song. |
 | status | [`DBStatus`](#dbstatus) | The status of this map. |
+| created_at | `Timestamp` | The timestamp of the entry creation. |
 
 #### song_artists
+
+```sql
+UNIQUE (song_id, display_order)
+```
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |

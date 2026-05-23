@@ -1,4 +1,67 @@
-from enum import Enum, Flag, auto
+from enum import Enum, Flag
+
+GENRE_MAP = {
+    'Classical': 'CLASSICAL',
+    'Country': 'COUNTRY',
+    'Dance': 'DANCE',
+    'Hip Hop/Rap': 'HIPHOP',
+    'Instrumental': 'INSTRUMENTAL',
+    'Pop': 'POP',
+    'R&B/Soul': 'RNB',
+    'Rock': 'ROCK'
+}
+
+MEDIA_MAP = {
+    'Soundtrack.Anime': 'ANIME',
+    'Soundtrack.Drama': 'DRAMA',
+    'Soundtrack.VideoGame': 'GAME',
+    'Soundtrack.VideoGame.Arcaea': 'ARCAEA',
+    'Soundtrack.VideoGame.CitiesSkylines': 'CITIES',
+    'Soundtrack.VideoGame.Cytus': 'CYTUS',
+    'Soundtrack.VideoGame.DancingLine': 'DANCELINE',
+    'Soundtrack.VideoGame.Deemo': 'DEEMO',
+    'Soundtrack.VideoGame.FNF': 'FNF',
+    'Soundtrack.VideoGame.Lanota': 'LANOTA',
+    'Soundtrack.VideoGame.Phigros': 'PHIGROS',
+    'Soundtrack.VideoGame.Rotaeno': 'ROTAENO',
+    'Soundtrack.VideoGame.Voez': 'VOEZ',
+}
+
+SUB_GENRE_MAP = {
+    'Bass.ColorBass': 'BASS_COLOR',
+    'Bass.FutureBass': 'BASS_FUTURE',
+    'Bass.KawaiiBass': 'BASS_KAWAII',
+    'Bass.MelodicBass': 'BASS_MELODIC',
+    'Downtempo': 'DOWNTEMPO',
+    'DrumNBass': 'DRUMNBASS',
+    'Dubstep.Brostep': 'DUBSTEP_BROSTEP',
+    'Dubstep.Chillstep': 'DUBSTEP_CHILLSTEP',
+    'Dubstep.MelodicDubstep': 'DUBSTEP_MELODIC',
+    'Dubstep.Riddim': 'DUBSTEP_RIDDIM',
+    'Funk': 'FUNK',
+    'GlitchHop': 'GLITCHHOP',
+    'Hard.Artcore': 'HARD_ARTCORE',
+    'Hard.FutureCore': 'HARD_FUTURECORE',
+    'Hard.HappyCore': 'HARD_HAPPYCORE',
+    'Hard.Hardcore': 'HARD_HARDCORE',
+    'Hard.HardStyle': 'HARD_HARDSTYLE',
+    'Hard.JCore': 'HARD_JCORE',
+    'House.AmbientHouse': 'HOUSE_AMBIENT',
+    'House.Complextro': 'HOUSE_COMPLEXTRO',
+    'House.ElectroHouse': 'HOUSE_ELECTRO',
+    'House.FutureHouse': 'HOUSE_FUTURE',
+    'House.ProgressiveHouse': 'HOUSE_PROGRESSIVE',
+    'House.SlapHouse': 'HOUSE_SLAP',
+    'House.TropicalHouse': 'HOUSE_TROPICAL',
+    'Jazz': 'JAZZ',
+    'Lo-fi': 'LOFI',
+    'Alternative': 'ROCK_ALTERNATIVE',
+    'Metal': 'ROCK_METAL',
+    'Soft': 'ROCK_SOFT',
+    'Synthwave': 'SYNTHWAVE',
+    'Trance': 'TRANCE',
+    'Trap': 'TRAP',
+}
 
 # Enums
 
@@ -95,93 +158,11 @@ class DBGenreTag(Flag):
 
     @staticmethod
     def get_genre(name: str) -> 'DBGenreTag':
-        if name.capitalize() == 'Classical':
-            return DBGenreTag.CLASSICAL
-        if name.capitalize() == 'Country':
-            return DBGenreTag.COUNTRY
-        if name.capitalize() == 'Dance':
-            return DBGenreTag.DANCE
-        if name == 'Hip Hop/Rap':
-            return DBGenreTag.HIPHOP
-        if name.capitalize() == 'Instrumental':
-            return DBGenreTag.INSTRUMENTAL
-        if name.capitalize() == 'Pop':
-            return DBGenreTag.POP
-        if name == 'R&B/Soul':
-            return DBGenreTag.RNB
-        if name.capitalize() == 'Rock':
-            return DBGenreTag.ROCK
-        return DBGenreTag.NONE
+        return DBGenreTag[GENRE_MAP.get(name, GENRE_MAP.get(name.capitalize(), 'NONE'))]
     
     @staticmethod
     def get_sub_genre(name: str) -> 'DBGenreTag':
-        if name == 'Bass.ColorBass':
-            return DBGenreTag.BASS_COLOR
-        if name == 'Bass.FutureBass':
-            return DBGenreTag.BASS_FUTURE
-        if name == 'Bass.KawaiiBass':
-            return DBGenreTag.BASS_KAWAII
-        if name == 'Bass.MelodicBass':
-            return DBGenreTag.BASS_MELODIC
-        if name == 'Downtempo':
-            return DBGenreTag.DOWNTEMPO
-        if name == 'DrumNBass':
-            return DBGenreTag.DRUMNBASS
-        if name == 'Dubstep.Brostep':
-            return DBGenreTag.DUBSTEP_BROSTEP
-        if name == 'Dubstep.Chillstep':
-            return DBGenreTag.DUBSTEP_CHILLSTEP
-        if name == 'Dubstep.MelodicDubstep':
-            return DBGenreTag.DUBSTEP_MELODIC
-        if name == 'Dubstep.Riddim':
-            return DBGenreTag.DUBSTEP_RIDDIM
-        if name == 'Funk':
-            return DBGenreTag.FUNK
-        if name == 'GlitchHop':
-            return DBGenreTag.GLITCHHOP
-        if name == 'Hard.Artcore':
-            return DBGenreTag.HARD_ARTCORE
-        if name == 'Hard.FutureCore':
-            return DBGenreTag.HARD_FUTURECORE
-        if name == 'Hard.HappyCore':
-            return DBGenreTag.HARD_HAPPYCORE
-        if name == 'Hard.Hardcore':
-            return DBGenreTag.HARD_HARDCORE
-        if name == 'Hard.HardStyle':
-            return DBGenreTag.HARD_HARDSTYLE
-        if name == 'Hard.JCore':
-            return DBGenreTag.HARD_JCORE
-        if name == 'House.AmbientHouse':
-            return DBGenreTag.HOUSE_AMBIENT
-        if name == 'House.Complextro':
-            return DBGenreTag.HOUSE_COMPLEXTRO
-        if name == 'House.ElectroHouse':
-            return DBGenreTag.HOUSE_ELECTRO
-        if name == 'House.FutureHouse':
-            return DBGenreTag.HOUSE_FUTURE
-        if name == 'House.ProgressiveHouse':
-            return DBGenreTag.HOUSE_PROGRESSIVE
-        if name == 'House.SlapHouse':
-            return DBGenreTag.HOUSE_SLAP
-        if name == 'House.TropicalHouse':
-            return DBGenreTag.HOUSE_TROPICAL
-        if name == 'Jazz':
-            return DBGenreTag.JAZZ
-        if name == 'Lo-fi':
-            return DBGenreTag.LOFI
-        if name == 'Alternative':
-            return DBGenreTag.ROCK_ALTERNATIVE
-        if name == 'Metal':
-            return DBGenreTag.ROCK_METAL
-        if name == 'Soft':
-            return DBGenreTag.ROCK_SOFT
-        if name == 'Synthwave':
-            return DBGenreTag.SYNTHWAVE
-        if name == 'Trance':
-            return DBGenreTag.TRANCE
-        if name == 'Trap':
-            return DBGenreTag.TRAP
-        return DBGenreTag.NONE
+        return DBGenreTag[SUB_GENRE_MAP.get(name, 'NONE')]
 
 class DBLocale(Flag):
     '''
@@ -264,33 +245,7 @@ class DBMediaTag(Flag):
     def get_media_tag(name: str) -> 'DBMediaTag':
         if not name.startswith('S'):
             return DBMediaTag.NONE
-        if name == 'Soundtrack.Anime':
-            return DBMediaTag.ANIME
-        if name == 'Soundtrack.Drama':
-            return DBMediaTag.DRAMA
-        if name == 'Soundtrack.VideoGame':
-            return DBMediaTag.GAME
-        if name == 'Soundtrack.VideoGame.Arcaea':
-            return DBMediaTag.ARCAEA
-        if name == 'Soundtrack.VideoGame.CitiesSkylines':
-            return DBMediaTag.CITIES
-        if name == 'Soundtrack.VideoGame.Cytus':
-            return DBMediaTag.CYTUS
-        if name == 'Soundtrack.VideoGame.DancingLine':
-            return DBMediaTag.DANCELINE
-        if name == 'Soundtrack.VideoGame.Deemo':
-            return DBMediaTag.DEEMO
-        if name == 'Soundtrack.VideoGame.FNF':
-            return DBMediaTag.FNF
-        if name == 'Soundtrack.VideoGame.Lanota':
-            return DBMediaTag.LANOTA
-        if name == 'Soundtrack.VideoGame.Phigros':
-            return DBMediaTag.PHIGROS
-        if name == 'Soundtrack.VideoGame.Rotaeno':
-            return DBMediaTag.ROTAENO
-        if name == 'Soundtrack.VideoGame.Voez':
-            return DBMediaTag.VOEZ
-        return DBMediaTag.NONE
+        return DBMediaTag[MEDIA_MAP.get(name, 'NONE')]
 
 class DBMethod(Enum):
     '''
