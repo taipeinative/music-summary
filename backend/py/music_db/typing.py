@@ -59,10 +59,10 @@ class DBGenreTag(Flag):
     POP = 1 << 5
     RNB = 1 << 6
     ROCK = 1 << 7
-    BASS_BUBBLEGUM = 1 << 8
-    BASS_COLOR = 1 << 9
-    BASS_FUTURE = 1 << 10
-    BASS_KAWAII = 1 << 11
+    BASS_COLOR = 1 << 8
+    BASS_FUTURE = 1 << 9
+    BASS_KAWAII = 1 << 10
+    BASS_MELODIC = 1 << 11
     DOWNTEMPO = 1 << 12
     DRUMNBASS = 1 << 13
     DUBSTEP_BROSTEP = 1 << 14
@@ -77,19 +77,21 @@ class DBGenreTag(Flag):
     HARD_HARDCORE = 1 << 23
     HARD_HARDSTYLE = 1 << 24
     HARD_JCORE = 1 << 25
-    HOUSE_COLOR = 1 << 26
+    HOUSE_AMBIENT = 1 << 26
     HOUSE_COMPLEXTRO = 1 << 27
     HOUSE_ELECTRO = 1 << 28
     HOUSE_FUTURE = 1 << 29
-    HOUSE_MELODIC = 1 << 30
-    HOUSE_PROGRESSIVE = 1 << 31
-    HOUSE_SLAP = 1 << 32
-    HOUSE_TROPICAL = 1 << 33
-    JAZZ = 1 << 34
-    ROCK_METAL = 1 << 35
-    ROCK_ALTERNATIVE = 1 << 36
-    TRANCE = 1 << 37
-    TRAP = 1 << 38
+    HOUSE_PROGRESSIVE = 1 << 30
+    HOUSE_SLAP = 1 << 31
+    HOUSE_TROPICAL = 1 << 32
+    JAZZ = 1 << 33
+    LOFI = 1 << 34
+    ROCK_ALTERNATIVE = 1 << 35
+    ROCK_METAL = 1 << 36
+    ROCK_SOFT = 1 << 37
+    SYNTHWAVE = 1 << 38
+    TRANCE = 1 << 39
+    TRAP = 1 << 40
 
     @staticmethod
     def get_genre(name: str) -> 'DBGenreTag':
@@ -113,7 +115,72 @@ class DBGenreTag(Flag):
     
     @staticmethod
     def get_sub_genre(name: str) -> 'DBGenreTag':
-        # TODO: Fill all sub genres
+        if name == 'Bass.ColorBass':
+            return DBGenreTag.BASS_COLOR
+        if name == 'Bass.FutureBass':
+            return DBGenreTag.BASS_FUTURE
+        if name == 'Bass.KawaiiBass':
+            return DBGenreTag.BASS_KAWAII
+        if name == 'Bass.MelodicBass':
+            return DBGenreTag.BASS_MELODIC
+        if name == 'Downtempo':
+            return DBGenreTag.DOWNTEMPO
+        if name == 'DrumNBass':
+            return DBGenreTag.DRUMNBASS
+        if name == 'Dubstep.Brostep':
+            return DBGenreTag.DUBSTEP_BROSTEP
+        if name == 'Dubstep.Chillstep':
+            return DBGenreTag.DUBSTEP_CHILLSTEP
+        if name == 'Dubstep.MelodicDubstep':
+            return DBGenreTag.DUBSTEP_MELODIC
+        if name == 'Dubstep.Riddim':
+            return DBGenreTag.DUBSTEP_RIDDIM
+        if name == 'Funk':
+            return DBGenreTag.FUNK
+        if name == 'GlitchHop':
+            return DBGenreTag.GLITCHHOP
+        if name == 'Hard.Artcore':
+            return DBGenreTag.HARD_ARTCORE
+        if name == 'Hard.FutureCore':
+            return DBGenreTag.HARD_FUTURECORE
+        if name == 'Hard.HappyCore':
+            return DBGenreTag.HARD_HAPPYCORE
+        if name == 'Hard.Hardcore':
+            return DBGenreTag.HARD_HARDCORE
+        if name == 'Hard.HardStyle':
+            return DBGenreTag.HARD_HARDSTYLE
+        if name == 'Hard.JCore':
+            return DBGenreTag.HARD_JCORE
+        if name == 'House.AmbientHouse':
+            return DBGenreTag.HOUSE_AMBIENT
+        if name == 'House.Complextro':
+            return DBGenreTag.HOUSE_COMPLEXTRO
+        if name == 'House.ElectroHouse':
+            return DBGenreTag.HOUSE_ELECTRO
+        if name == 'House.FutureHouse':
+            return DBGenreTag.HOUSE_FUTURE
+        if name == 'House.ProgressiveHouse':
+            return DBGenreTag.HOUSE_PROGRESSIVE
+        if name == 'House.SlapHouse':
+            return DBGenreTag.HOUSE_SLAP
+        if name == 'House.TropicalHouse':
+            return DBGenreTag.HOUSE_TROPICAL
+        if name == 'Jazz':
+            return DBGenreTag.JAZZ
+        if name == 'Lo-fi':
+            return DBGenreTag.LOFI
+        if name == 'Alternative':
+            return DBGenreTag.ROCK_ALTERNATIVE
+        if name == 'Metal':
+            return DBGenreTag.ROCK_METAL
+        if name == 'Soft':
+            return DBGenreTag.ROCK_SOFT
+        if name == 'Synthwave':
+            return DBGenreTag.SYNTHWAVE
+        if name == 'Trance':
+            return DBGenreTag.TRANCE
+        if name == 'Trap':
+            return DBGenreTag.TRAP
         return DBGenreTag.NONE
 
 class DBLocale(Flag):

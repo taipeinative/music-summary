@@ -357,14 +357,14 @@ A 64-bit integer enum. Can be used as a flag enum if needed.
 | 2<sup>5</sup> | POP | Pop music. |
 | 2<sup>6</sup> | RNB | R&B and Soul music. |
 | 2<sup>7</sup> | ROCK | Rock music. |
-| 2<sup>8</sup> | BASS_BUBBLEGUM | Bubblegum Bass music. |
-| 2<sup>9</sup> | BASS_COLOR | Color Bass music. |
-| 2<sup>10</sup> | BASS_FUTURE | Future Bass music. |
-| 2<sup>11</sup> | BASS_KAWAII | Kawaii Future Bass music. |
+| 2<sup>8</sup> | BASS_COLOR | Color Bass music. |
+| 2<sup>9</sup> | BASS_FUTURE | Future Bass music. |
+| 2<sup>10</sup> | BASS_KAWAII | Kawaii Future Bass music. |
+| 2<sup>11</sup> | BASS_MELODIC | Melodic Bass music. |
 | 2<sup>12</sup> | DOWNTEMPO | Downtempo music. |
 | 2<sup>13</sup> | DRUMNBASS | Drum and Bass music. |
 | 2<sup>14</sup> | DUBSTEP_BROSTEP | Brostep music. |
-| 2<sup>15</sup> | DUBSTEP_CHILL | Chillstep music. |
+| 2<sup>15</sup> | DUBSTEP_CHILLSTEP | Chillstep music. |
 | 2<sup>16</sup> | DUBSTEP_MELODIC | Melodic Dubstep music. |
 | 2<sup>17</sup> | DUBSTEP_RIDDIM | Riddim music. |
 | 2<sup>18</sup> | FUNK | Funk music. |
@@ -375,21 +375,23 @@ A 64-bit integer enum. Can be used as a flag enum if needed.
 | 2<sup>23</sup> | HARD_HARDCORE | Hardcore music. |
 | 2<sup>24</sup> | HARD_HARDSTYLE | Hardstyle music. |
 | 2<sup>25</sup> | HARD_JCORE | J-core music. |
-| 2<sup>26</sup> | HOUSE_COLOR | Color House music. |
+| 2<sup>26</sup> | HOUSE_AMBIENT | Ambient house music. |
 | 2<sup>27</sup> | HOUSE_COMPLEXTRO | Complextro music. |
 | 2<sup>28</sup> | HOUSE_ELECTRO | Electro House music. |
 | 2<sup>29</sup> | HOUSE_FUTURE | Future House music. |
-| 2<sup>30</sup> | HOUSE_MELODIC | Melodic House music. |
-| 2<sup>31</sup> | HOUSE_PROGRESSIVE | Progressive House music. |
-| 2<sup>32</sup> | HOUSE_SLAP | Slap House music. |
-| 2<sup>33</sup> | HOUSE_TROPICAL | Tropical House music. |
-| 2<sup>34</sup> | JAZZ | Jazz music. |
-| 2<sup>35</sup> | ROCK_METAL | Metal music. |
-| 2<sup>36</sup> | ROCK_ALTERNATIVE | Alternative rock music. |
-| 2<sup>37</sup> | TRANCE | Trance music. |
-| 2<sup>38</sup> | TRAP | Trap music. |
+| 2<sup>30</sup> | HOUSE_PROGRESSIVE | Progressive House music. |
+| 2<sup>31</sup> | HOUSE_SLAP | Slap House music. |
+| 2<sup>32</sup> | HOUSE_TROPICAL | Tropical House music. |
+| 2<sup>33</sup> | JAZZ | Jazz music. |
+| 2<sup>34</sup> | LOFI | Lo-fi music. |
+| 2<sup>35</sup> | ROCK_ALTERNATIVE | Alternative rock music. |
+| 2<sup>36</sup> | ROCK_METAL | Metal music. |
+| 2<sup>37</sup> | ROCK_SOFT | Soft rock music. |
+| 2<sup>38</sup> | SYNTHWAVE | Synthwave music. |
+| 2<sup>39</sup> | TRANCE | Trance music. |
+| 2<sup>40</sup> | TRAP | Trap music. |
 
-*The value from 2<sup>39</sup> all the way to 2<sup>62</sup> are reserved.*
+*The value from 2<sup>41</sup> all the way to 2<sup>62</sup> are reserved.*
 
 #### DBLocale
 
