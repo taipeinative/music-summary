@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genre Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar" id="sidebar">
+            <h2>Genres</h2>
+            <ul id="genre-list">
+                <!-- Genre groups will be injected here -->
+            </ul>
+        </aside>
+        
+        <main class="content">
+            <header>
+                <div class="header-top">
+                    <div>
+                        <h1 id="view-title">All Tracks</h1>
+                        <p id="view-count" class="meta"></p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="sort-toggle" class="view-toggle" title="Cycle Sort (Default)">
+                            <svg id="icon-sort-default" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>
+                            <svg id="icon-sort-asc" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;"><path d="M3 12h14v-2H3v2zm0 5h10v-2H3v2zm0-10v2h18V7H3zm16 10h-2v4h-2l3 3 3-3h-2v-4z"/></svg>
+                            <svg id="icon-sort-desc" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;"><path d="M3 12h14v-2H3v2zm0 5h10v-2H3v2zm0-10v2h18V7H3zm18 10l-3-3-3 3h2v4h2v-4h2z"/></svg>
+                        </button>
+                        <button id="view-toggle" class="view-toggle" title="Toggle View">
+                            <svg id="icon-list" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+                            <svg id="icon-grid" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>
+                        </button>
+                        <button id="info-toggle" class="view-toggle" title="Toggle Info Panel">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </header>
+            <div id="results" class="results-grid"></div>
+        </main>
+        
+        <aside class="metadata-panel" id="metadata-panel">
+            <div class="metadata-content" id="metadata-content">
+                <p class="meta" style="text-align:center; margin-top:2rem;">Select a track to view details</p>
+            </div>
+        </aside>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
