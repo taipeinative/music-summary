@@ -345,6 +345,17 @@
     "alias": [],
     "roles": []
   },
+  "41576563": {
+    "or": "Rupert Gregson-Williams",
+    "tw": "Rupert Gregson-Williams",
+    "us": "Rupert Gregson-Williams",
+    "thumb": null,
+    "locale": "en",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "60376564": {
     "or": "Rival",
     "tw": "Rival",
@@ -6335,6 +6346,17 @@
     "alias": [],
     "roles": []
   },
+  "1305800885": {
+    "or": "棗いつき",
+    "tw": "棗いつき",
+    "us": "Natsume Itsuki",
+    "thumb": "Features112/v4/01/44/ea/0144ea86-4c19-8749-662b-d540cc0281bc/mzl.nzogwrol.jpg",
+    "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1309448933": {
     "or": "Natiive",
     "tw": "Natiive",
@@ -9983,7 +10005,9 @@
     "locale": "en",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "TELL YOUR STORY music by Ikson™"
+    ],
     "roles": []
   },
   "1604618142": {
@@ -10847,6 +10871,17 @@
     "alias": [],
     "roles": []
   },
+  "1780866854": {
+    "or": "Taste",
+    "tw": "Taste",
+    "us": "Taste",
+    "thumb": null,
+    "locale": "ja",
+    "synth": false,
+    "ai": false,
+    "alias": [],
+    "roles": []
+  },
   "1782888486": {
     "or": "savogy",
     "tw": "savogy",
@@ -10989,7 +11024,9 @@
     "locale": "en",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "Scandinavianz"
+    ],
     "roles": []
   },
   "1844751362": {
