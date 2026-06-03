@@ -52,6 +52,7 @@ class XMLSource:
                 'name': track_info['Name'],
                 'added_date': track_info.get('Date Added'),
                 'album': track_info.get('Album'),
+                'album_artist': track_info.get('Album Artist'),
                 'artist': track_info.get('Artist'),
                 'disc_count': track_info.get('Disc Count'),
                 'disc_number': track_info.get('Disc Number'),

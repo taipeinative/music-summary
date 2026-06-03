@@ -171,6 +171,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
         'name': 'name 2',
         'added_date': 'added_date 2',
         'album': 'album 2',
+        'album_artist': 'album_artist 2',
         'artist': 'artist 2',
         'disc_number': 'disc_number 2',
         'duration': 'duration 2',
@@ -255,7 +256,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
     step_3_display_order = [
         'id 1', 'id 2', 'name 1', 'name 2', 'name 3', 'name 4', 'added_date 2', 'modified_date 2',
         'artist 1', 'artist 2', 'artist 3', 'artist 4', 'artist_id', 'album 1', 'album 2',
-        'album 3', 'disc_number 1', 'disc_number 2', 'disc_count', 'track_number 1',
+        'album 3', 'album_artist 2', 'disc_number 1', 'disc_number 2', 'disc_count', 'track_number 1',
         'track_number 2', 'track_count', 'duration 2', 'genre', 'stream_genre 1',
         'stream_genre 2', 'media_a', 'media_b', 'media_c', 'release_date 2', 'year 1',
         'year 4', 'play_count_2512 1', 'play_count_2512 2', 'play_count_2512 4',
@@ -278,6 +279,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
         'name': 'name 5',
         'added_date': 'added_date 5',
         'album': 'album 5',
+        'album_artist': 'album_artist 5',
         'artist': 'artist 5',
         'disc_number': 'disc_number 5',
         'duration': 'duration 5',
@@ -315,12 +317,12 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
     step_4_display_order = [
         'id 1', 'id 2', 'id 5', 'name 1', 'name 2', 'name 3', 'name 4', 'name 5',
         'artist 1', 'artist 2', 'artist 3', 'artist 4', 'artist 5', 'artist_id',
-        'album 1', 'album 2', 'album 3', 'album 5', 'disc_number 1', 'disc_number 2',
-        'disc_number 5', 'disc_count', 'track_number 1', 'track_number 2', 'track_number 5',
-        'track_count', 'duration 2', 'duration 5', 'genre', 'stream_genre 1', 'stream_genre 2',
-        'stream_genre 5', 'media_a', 'media_b', 'media_c', 'added_date 2', 'added_date 5',
-        'modified_date 2', 'modified_date 5', 'release_date 2', 'release_date 5',
-        'year 1', 'year 4', 'play_count_2504', 'play_count_2512 1', 'play_count_2512 2',
+        'album 1', 'album 2', 'album 3', 'album 5', 'album_artist 2', 'album_artist 5',
+        'disc_number 1', 'disc_number 2', 'disc_number 5', 'disc_count', 'track_number 1',
+        'track_number 2', 'track_number 5', 'track_count', 'duration 2', 'duration 5', 'genre',
+        'stream_genre 1', 'stream_genre 2', 'stream_genre 5', 'media_a', 'media_b', 'media_c',
+        'added_date 2', 'added_date 5', 'modified_date 2', 'modified_date 5', 'release_date 2',
+        'release_date 5', 'year 1', 'year 4', 'play_count_2504', 'play_count_2512 1', 'play_count_2512 2',
         'play_count_2512 4', 'play_count_25', 'apple_music 1', 'apple_music 3', 'apple_music 4',
         'isrc 1', 'isrc 3', 'isrc 4', 'vocal', 'locale', 'album_artwork', 'temp_playlist'
     ]
@@ -342,8 +344,9 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
 
     step_4_string_columns = [
         'name 1', 'name 2', 'name 3', 'name 4', 'name 5', 'artist 1', 'artist 2', 'artist 3', 'artist 4', 'artist 5',
-        'album 1', 'album 2', 'album 3', 'album 5', 'genre', 'stream_genre 1', 'stream_genre 2', 'stream_genre 5',
-        'media_a', 'media_b', 'media_c', 'isrc 1', 'isrc 3', 'isrc 4', 'vocal', 'locale', 'album_artwork'
+        'album 1', 'album 2', 'album 3', 'album 5', 'album_artist 2', 'album_artist 5', 'genre', 'stream_genre 1',
+        'stream_genre 2', 'stream_genre 5', 'media_a', 'media_b', 'media_c', 'isrc 1', 'isrc 3', 'isrc 4', 'vocal',
+        'locale', 'album_artwork'
     ]
 
     step_4_output[step_4_integer_columns] = step_4_output[step_4_integer_columns].astype('Int64')
@@ -365,6 +368,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
     candidate['artist_primary 2512'] = step_4_output['artist 2'].combine_first(step_4_output['artist 1'])
     candidate['album 2504'] = step_4_output['album 5']
     candidate['album 2512'] = step_4_output['album 1'].combine_first(step_4_output['album 2'])
+    candidate['album_artist'] = step_4_output['album_artist 2'].combine_first(step_4_output['album_artist 5'])
     candidate['play_count 2504'] = step_4_output['play_count_2504'].fillna(0)
     candidate['play_count 2512'] = step_4_output['play_count_2512 2'].combine_first(candidate['play_count 2504'])
     candidate['play_count_deducted'] = candidate.apply(lambda x: x['play_count 2504'] - x['play_count 2512'] if x['play_count 2512'] < x['play_count 2504'] else 0, axis = 1)
@@ -385,8 +389,8 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
     candidate['isrc'] = step_4_output.apply(lambda x: remove_duplicates([x['isrc 3'], x['isrc 4']]), axis = 1)
     candidate['album_artwork'] = step_4_output['album_artwork']
     candidate['sort_key'] = candidate[['added_date', 'modified_date']].min(axis = 1)
-    candidate.insert(15, 'is_2025_track', candidate.apply(lambda x: is_track_added_in_2025(x), axis = 1))
-    candidate.insert(16, 'play_count_2025', candidate.apply(lambda x: x['play_count 2512'] if x['is_2025_track'] else abs(x['play_count 2512'] - x['play_count 2504']), axis = 1))
+    candidate.insert(16, 'is_2025_track', candidate.apply(lambda x: is_track_added_in_2025(x), axis = 1))
+    candidate.insert(17, 'play_count_2025', candidate.apply(lambda x: x['play_count 2512'] if x['is_2025_track'] else abs(x['play_count 2512'] - x['play_count 2504']), axis = 1))
 
     candidate = candidate.sort_values(['sort_key', 'name 2512'], ascending = True).drop(columns = ['is_2025_track', 'sort_key']).reset_index(drop = True)
     candidate.insert(0, 'legacy_id', candidate.index)

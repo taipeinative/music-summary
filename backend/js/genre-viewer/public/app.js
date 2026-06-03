@@ -46,6 +46,25 @@ const groupedData = {
     unspecified: []
 };
 
+let currentEditMode = null; // 'genre' | 'subgenres' | null
+let activeTrack = null;
+let editSelections = []; // array of selected tags for genres/subgenres
+
+function showToast(message) {
+    let toast = document.getElementById('toast-notification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-notification';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 2000);
+}
+
 // Initialize groups
 Object.values(SUB_GENRE_MAP).forEach(name => {
     groupedData.subgenres[name] = [];
@@ -208,10 +227,31 @@ function renderResults(title, tracks) {
     
     // Process sort
     let displayTracks = [...tracks];
-    if (sortMode === 1) {
-        displayTracks.sort((a, b) => (a['name 2512'] || '').localeCompare(b['name 2512'] || ''));
-    } else if (sortMode === 2) {
-        displayTracks.sort((a, b) => (b['name 2512'] || '').localeCompare(a['name 2512'] || ''));
+    const sortField = document.getElementById('sort-select') ? document.getElementById('sort-select').value : 'Title';
+    
+    if (sortMode !== 0) {
+        const sortAsc = sortMode === 1;
+        displayTracks.sort((a, b) => {
+            let valA, valB, numA, numB;
+            if (sortField === 'Title') {
+                valA = a['name 2512'] || '';
+                valB = b['name 2512'] || '';
+                return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (sortField === 'Artist') {
+                valA = a['artist_label'] || a['artist_primary 2512'] || '';
+                valB = b['artist_label'] || b['artist_primary 2512'] || '';
+                return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (sortField === 'Year') {
+                valA = a['release_date'] ? a['release_date'].substring(0, 4) : '';
+                valB = b['release_date'] ? b['release_date'].substring(0, 4) : '';
+                return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (sortField === 'Play Count') {
+                numA = (parseInt(a['play_count 2512']) || 0) + (parseInt(a['play_count_deducted']) || 0);
+                numB = (parseInt(b['play_count 2512']) || 0) + (parseInt(b['play_count_deducted']) || 0);
+                return sortAsc ? numA - numB : numB - numA;
+            }
+            return 0;
+        });
     } else {
         displayTracks.sort((a, b) => parseInt(a.legacy_id) - parseInt(b.legacy_id));
     }
@@ -282,6 +322,8 @@ async function showMetadata(t, imgUrl) {
     const subgenresArr = t.genre_tag ? t.genre_tag.split(',').map(s => s.trim()).filter(s => SUB_GENRE_MAP[s]).map(s => SUB_GENRE_MAP[s]) : [];
     const subgenres = subgenresArr.length > 0 ? subgenresArr.join(', ') : 'None';
     
+    const playCount = (parseInt(t['play_count 2512']) || 0) + (parseInt(t['play_count_deducted']) || 0);
+
     content.innerHTML = `
         <img class="meta-img" src="${imgUrl}" alt="Artwork">
         <div id="audio-container"></div>
@@ -302,16 +344,28 @@ async function showMetadata(t, imgUrl) {
             <div class="meta-value">${releaseYear}</div>
         </div>
         <div class="meta-item">
-            <span class="meta-label">Genre</span>
-            <div class="meta-value">${genre}</div>
+            <span class="meta-label">Genre <button id="edit-genre" class="edit-btn" title="Edit Genre"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></span>
+            <div class="meta-value" id="genre-val">${genre}</div>
         </div>
         <div class="meta-item">
-            <span class="meta-label">Subgenres</span>
-            <div class="meta-value">${subgenres}</div>
+            <span class="meta-label">Subgenres <button id="edit-subgenres" class="edit-btn" title="Edit Subgenres"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></span>
+            <div class="meta-value" id="subgenres-val">${subgenres}</div>
+        </div>
+        <div class="meta-item">
+            <span class="meta-label">Play Count</span>
+            <div class="meta-value">${playCount.toLocaleString()}</div>
         </div>
     `;
     
     panel.classList.add('open');
+
+    if (currentEditMode && activeTrack && activeTrack.legacy_id !== t.legacy_id) {
+        showToast(`The edits were not saved for ${activeTrack['artist_label'] || activeTrack['artist_primary 2512'] || 'Unknown'} - ${activeTrack['name 2512'] || 'Unknown'}.`);
+        currentEditMode = null;
+    }
+    activeTrack = t;
+
+    setupEditHandlers();
 
     // Fetch Audio
     if (appleMusicId) {
@@ -446,10 +500,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Sort Toggle Logic
     const sortToggleBtn = document.getElementById('sort-toggle');
+    const sortSelect = document.getElementById('sort-select');
     const iconSortDefault = document.getElementById('icon-sort-default');
     const iconSortAsc = document.getElementById('icon-sort-asc');
     const iconSortDesc = document.getElementById('icon-sort-desc');
     
+    function updateSortTitle() {
+        const field = sortSelect ? sortSelect.value : 'Title';
+        const titles = ['Cycle Sort (Default)', `Cycle Sort (${field} Asc)`, `Cycle Sort (${field} Desc)`];
+        sortToggleBtn.title = titles[sortMode];
+    }
+
     sortToggleBtn.addEventListener('click', () => {
         sortMode = (sortMode + 1) % 3;
         
@@ -457,11 +518,18 @@ document.addEventListener('DOMContentLoaded', () => {
         iconSortAsc.style.display = sortMode === 1 ? 'block' : 'none';
         iconSortDesc.style.display = sortMode === 2 ? 'block' : 'none';
         
-        const titles = ['Cycle Sort (Default)', 'Cycle Sort (Title Asc)', 'Cycle Sort (Title Desc)'];
-        sortToggleBtn.title = titles[sortMode];
-        
+        updateSortTitle();
         renderResults(currentTitle, currentTracks);
     });
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            updateSortTitle();
+            if (sortMode !== 0) {
+                renderResults(currentTitle, currentTracks);
+            }
+        });
+    }
 
     // Info Panel Toggle Logic
     const infoToggleBtn = document.getElementById('info-toggle');
@@ -471,3 +539,197 @@ document.addEventListener('DOMContentLoaded', () => {
         metadataPanel.classList.toggle('open');
     });
 });
+
+
+function setupEditHandlers() {
+    const editGenreBtn = document.getElementById('edit-genre');
+    const editSubgenresBtn = document.getElementById('edit-subgenres');
+    
+    editGenreBtn.addEventListener('click', () => {
+        const currentGenre = activeTrack.genre || '';
+        const currentSubgenresArr = activeTrack.genre_tag ? activeTrack.genre_tag.split(',').map(s => s.trim()).filter(s => SUB_GENRE_MAP[s]).map(s => SUB_GENRE_MAP[s]) : [];
+        const currentSubgenresDisplay = currentSubgenresArr.length > 0 ? currentSubgenresArr.join(', ') : 'None';
+
+        if (currentEditMode === 'subgenres') {
+            document.getElementById('subgenres-val').innerHTML = currentSubgenresDisplay;
+            resetEditButton(editSubgenresBtn);
+            currentEditMode = null;
+        }
+        
+        if (currentEditMode === 'genre') {
+            saveEdits('genre', activeTrack);
+        } else {
+            currentEditMode = 'genre';
+            editGenreBtn.classList.add('check-btn');
+            editGenreBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+            startEditing('genre', currentGenre ? [currentGenre] : []);
+        }
+    });
+
+    editSubgenresBtn.addEventListener('click', () => {
+        const currentGenre = activeTrack.genre || 'None';
+        const currentSubgenresArr = activeTrack.genre_tag ? activeTrack.genre_tag.split(',').map(s => s.trim()).filter(s => SUB_GENRE_MAP[s]).map(s => SUB_GENRE_MAP[s]) : [];
+        const currentSubgenresDisplay = currentSubgenresArr.length > 0 ? currentSubgenresArr.join(', ') : 'None';
+
+        if (currentEditMode === 'genre') {
+            document.getElementById('genre-val').innerHTML = currentGenre;
+            resetEditButton(editGenreBtn);
+            currentEditMode = null;
+        }
+        
+        if (currentEditMode === 'subgenres') {
+            saveEdits('subgenres', activeTrack);
+        } else {
+            currentEditMode = 'subgenres';
+            editSubgenresBtn.classList.add('check-btn');
+            editSubgenresBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+            startEditing('subgenres', currentSubgenresArr);
+        }
+    });
+}
+
+function resetEditButton(btn) {
+    btn.classList.remove('check-btn');
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+}
+
+function startEditing(mode, initialSelections) {
+    editSelections = [...initialSelections].filter(s => s !== 'None' && s !== '');
+    const containerId = mode === 'genre' ? 'genre-val' : 'subgenres-val';
+    const container = document.getElementById(containerId);
+    
+    container.innerHTML = `
+        <div class="edit-container">
+            <input type="text" class="edit-search" id="edit-search-input" placeholder="Search ${mode}..." autocomplete="off">
+            <div id="edit-dropdown" class="edit-dropdown"></div>
+        </div>
+    `;
+    const searchInput = document.getElementById('edit-search-input');
+    
+    renderEditDropdown(mode, '');
+    
+    searchInput.addEventListener('input', (e) => {
+        renderEditDropdown(mode, e.target.value);
+    });
+    searchInput.focus();
+}
+
+function renderEditDropdown(mode, filterText) {
+    const dropdown = document.getElementById('edit-dropdown');
+    dropdown.innerHTML = '';
+    
+    filterText = filterText.toLowerCase();
+    
+    let options = [];
+    if (mode === 'genre') {
+        options = GENERIC_GENRES;
+    } else {
+        options = Object.values(SUB_GENRE_MAP).filter((v, i, a) => a.indexOf(v) === i); // unique values
+        options.sort();
+    }
+    
+    const filtered = options.filter(opt => opt.toLowerCase().includes(filterText));
+    
+    filtered.forEach(opt => {
+        const item = document.createElement('div');
+        item.className = 'edit-dropdown-item';
+        const isSelected = editSelections.includes(opt);
+        if (isSelected) item.classList.add('selected');
+        
+        item.innerHTML = `<span>${opt}</span> ${isSelected ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}`;
+        
+        item.addEventListener('click', () => {
+            if (mode === 'genre') {
+                if (isSelected) {
+                    editSelections = []; // deselect
+                } else {
+                    editSelections = [opt]; // max 1 for genre
+                }
+            } else {
+                if (isSelected) {
+                    editSelections = editSelections.filter(s => s !== opt);
+                } else {
+                    editSelections.push(opt);
+                }
+            }
+            renderEditDropdown(mode, filterText);
+        });
+        
+        dropdown.appendChild(item);
+    });
+}
+
+async function saveEdits(mode, track) {
+    let newGenre = track.genre;
+    let newGenreTag = track.genre_tag;
+    
+    if (mode === 'genre') {
+        newGenre = editSelections.length > 0 ? editSelections[0] : '';
+    } else if (mode === 'subgenres') {
+        const currentTags = track.genre_tag ? track.genre_tag.split(',').map(s => s.trim()) : [];
+        const unmappedTags = currentTags.filter(t => !SUB_GENRE_MAP[t]);
+        
+        const mappedKeys = [];
+        editSelections.forEach(val => {
+            const ks = Object.keys(SUB_GENRE_MAP).filter(k => SUB_GENRE_MAP[k] === val);
+            if (ks.length > 0) {
+                mappedKeys.push(ks[0]);
+            }
+        });
+        
+        newGenreTag = [...unmappedTags, ...mappedKeys].filter(t => t !== '').join(',');
+    }
+    
+    try {
+        const res = await fetch('/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trackId: track.legacy_id,
+                genre: newGenre || '',
+                genre_tag: newGenreTag || ''
+            })
+        });
+        
+        if (!res.ok) throw new Error('Failed to save');
+        showToast('Edits saved successfully!');
+        
+        // Update local track reference
+        track.genre = newGenre;
+        track.genre_tag = newGenreTag;
+        
+        // Disable edit mode
+        currentEditMode = null;
+        const btn = document.getElementById(mode === 'genre' ? 'edit-genre' : 'edit-subgenres');
+        resetEditButton(btn);
+        
+        // Update UI
+        if (mode === 'genre') {
+            document.getElementById('genre-val').textContent = newGenre || 'None';
+        } else {
+            document.getElementById('subgenres-val').textContent = editSelections.length > 0 ? editSelections.join(', ') : 'None';
+        }
+        
+        // Re-process groups and re-render sidebar
+        Object.keys(groupedData.subgenres).forEach(k => groupedData.subgenres[k] = []);
+        groupedData.generics = {};
+        groupedData.unspecified = [];
+        processGroups(allTracks);
+        renderSidebar();
+        
+        // Re-render current view if tracks order/count might have changed
+        // For safety, re-render the active filter
+        let activeTracks = currentTracks;
+        if (currentTitle === 'All Tracks') activeTracks = allTracks;
+        else if (currentTitle === 'Unspecified') activeTracks = groupedData.unspecified;
+        else if (groupedData.generics[currentTitle]) activeTracks = groupedData.generics[currentTitle];
+        else activeTracks = groupedData.subgenres[currentTitle] || [];
+        
+        renderResults(currentTitle, activeTracks);
+        
+    } catch (e) {
+        showToast('Error saving edits.');
+        console.error(e);
+    }
+}
+

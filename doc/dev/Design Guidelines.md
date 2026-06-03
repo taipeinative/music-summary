@@ -25,6 +25,7 @@ As of April 2026, I have to deal with **three sources of data**, and their schem
 | artist_primary 2512 | `string` | The primary artists of the song in December 2025. |
 | album 2504 | `string?` | The album name of the song in April 2025. |
 | album 2512 | `string` | The album name of the song in December 2025. |
+| album_artist | `string?` | The artists of the album. |
 | play_count 2504 | `number` | The total play count of the song as of April 2025. |
 | play_count 2512 | `number` | The total play count of the song as of December 2025. |
 | play_count_deducted | `number` | The deducted number of play count of the song between April 2025 and December 2025. This possibly might be the synchronization issue on Apple Music's side, and these numbers are kept to record the true play count. |
