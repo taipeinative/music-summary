@@ -3,68 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import LiteralString
 
+from music_db.normalize import normalize_artist
+from music_db.query import get_artist_by_apple_id
+from music_db.schema import *
 from music_db.typing import DBArtistTag, DBAuthority, DBLocale, DBRelation
 import psycopg
 
 HERE = Path(__file__).resolve().parent
-
-ARTISTS_TABLE = """--sql
-    CREATE TABLE IF NOT EXISTS artists
-    (
-        artist_id serial NOT NULL,
-        artist_tag smallint NOT NULL,
-        artwork text,
-        created_at timestamp WITH TIME ZONE NOT NULL default now(),
-        updated_at timestamp WITH TIME ZONE NOT NULL default now(),
-        PRIMARY KEY (artist_id)
-    );
-"""
-
-ARTIST_ALIAS_TABLE = """--sql
-    CREATE TABLE IF NOT EXISTS artist_alias
-    (
-        artist_id integer NOT NULL,
-        alias text NOT NULL,
-        UNIQUE (artist_id, alias),
-        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
-    );
-"""
-
-ARTIST_AUTHORITIES_TABLE = """--sql
-    CREATE TABLE IF NOT EXISTS artist_authorities
-    (
-        artist_id integer NOT NULL,
-        authority smallint NOT NULL,
-        authority_code text NOT NULL,
-        UNIQUE (authority, authority_code),
-        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
-    );
-"""
-
-ARTIST_RELATIONS_TABLE = """--sql
-    CREATE TABLE IF NOT EXISTS artist_relations
-    (
-        artist_id integer NOT NULL,
-        ref_artist_id integer NOT NULL,
-        relation_to_ref smallint NOT NULL,
-        UNIQUE (artist_id, ref_artist_id, relation_to_ref),
-        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
-    );
-"""
-
-ARTIST_TITLES_TABLE = """--sql
-    CREATE TABLE IF NOT EXISTS artist_titles
-    (
-        artist_id integer NOT NULL,
-        fallback boolean NOT NULL DEFAULT false,
-        locale integer NOT NULL DEFAULT 1,
-        title text NOT NULL,
-        UNIQUE (artist_id, locale),
-        FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
-    );
-"""
 
 def create_artist(connection: psycopg.Connection, data: dict) -> int:
     artist_tag = DBArtistTag.NONE
@@ -88,74 +34,6 @@ def create_artist(connection: psycopg.Connection, data: dict) -> int:
 
     return int(artist_id)
 
-def create_table(connection: psycopg.Connection, table_sql: LiteralString) -> None:
-    with connection.cursor() as cur:
-        cur.execute(table_sql)
-
-def create_view(connection: psycopg.Connection) -> None:
-    with connection.cursor() as cur:
-        cur.execute("""--sql
-            CREATE OR REPLACE VIEW artist_overview AS
-            SELECT
-                a.artist_id,
-
-                -- fallback title
-                t.locale,
-                t.title,
-
-                -- zh-Hant title if exists, otherwise fallback title
-                COALESCE(t_zh.title, t.title) AS title_zh_hant,
-
-                -- aliases as text[]
-                COALESCE(al.aliases, ARRAY[]::text[]) AS alias,
-
-                a.artist_tag,
-
-                -- Apple Music ID
-                am.authority_code AS apple_music_id,
-
-                a.updated_at,
-                a.artwork
-
-            FROM artists a
-
-            -- fallback title
-            LEFT JOIN artist_titles t
-                ON a.artist_id = t.artist_id
-            AND t.fallback = true
-
-            -- zh-Hant title
-            LEFT JOIN artist_titles t_zh
-                ON a.artist_id = t_zh.artist_id
-            AND t_zh.locale = 32768
-
-            -- aggregate aliases
-            LEFT JOIN (
-                SELECT
-                    artist_id,
-                    array_agg(alias ORDER BY alias) AS aliases
-                FROM artist_alias
-                GROUP BY artist_id
-            ) al
-                ON a.artist_id = al.artist_id
-
-            -- Apple Music authority
-            LEFT JOIN artist_authorities am
-                ON a.artist_id = am.artist_id
-            AND am.authority = 1;
-        """)
-
-def get_artist_by_apple_id(connection: psycopg.Connection, apple_id: str) -> int | None:
-    with connection.cursor() as cur:
-        cur.execute("""--sql
-            SELECT artist_id
-            FROM artist_authorities
-            WHERE authority = %s
-              AND authority_code = %s
-        """, (DBAuthority.APPLE_MUSIC.value, apple_id))
-        row = cur.fetchone()
-        return row[0] if row else None
-
 def get_or_create_artist(connection: psycopg.Connection, data: dict) -> int | None:
     apple_id = data.get('id')
     if isinstance(apple_id, str):
@@ -174,10 +52,10 @@ def insert_artist_alias(connection: psycopg.Connection, artist_id: int, data: di
     with connection.cursor() as cur:
         for alias in aliases:
             cur.execute("""--sql
-                INSERT INTO artist_alias (artist_id, alias)
-                VALUES (%s, %s)
+                INSERT INTO artist_alias (artist_id, alias, normalized_alias)
+                VALUES (%s, %s, %s)
                 ON CONFLICT DO NOTHING
-            """, (artist_id, alias))
+            """, (artist_id, alias, normalize_artist(alias)))
 
 def insert_artist_relations(connection: psycopg.Connection, artist_id: int, data: dict, id_map: dict[str, int]) -> None:
     relations = data.get('roles')
@@ -217,10 +95,10 @@ def insert_artist_titles(connection: psycopg.Connection, artist_id: int, data: d
                 continue
 
             cur.execute("""--sql
-                INSERT INTO artist_titles (artist_id, fallback, locale, title)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO artist_titles (artist_id, fallback, locale, normalized_title, title)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
-            """, (artist_id, fallback, locale, title))
+            """, (artist_id, fallback, locale, normalize_artist(title), title))
 
 def main():
     parser = argparse.ArgumentParser(description = 'Migrate artists.json file to the new database.')
@@ -249,11 +127,11 @@ def main():
             user = args.user,
             password = args.password
         ) as conn:
-            create_table(conn, ARTISTS_TABLE) 
-            create_table(conn, ARTIST_ALIAS_TABLE)
-            create_table(conn, ARTIST_AUTHORITIES_TABLE)
-            create_table(conn, ARTIST_RELATIONS_TABLE)
-            create_table(conn, ARTIST_TITLES_TABLE)
+            create(conn, ARTISTS_TABLE) 
+            create(conn, ARTIST_ALIAS_TABLE)
+            create(conn, ARTIST_AUTHORITIES_TABLE)
+            create(conn, ARTIST_RELATIONS_TABLE)
+            create(conn, ARTIST_TITLES_TABLE)
 
             apple_to_db_map = {}
             for artist in artists:
@@ -272,7 +150,7 @@ def main():
             for artist in artists:
                 insert_artist_relations(conn, artist['music_id'], artist, apple_to_db_map)
             
-            create_view(conn)
+            create(conn, ARTIST_OVERVIEW)
 
     except Exception as ex:
         parser.error(str(ex))

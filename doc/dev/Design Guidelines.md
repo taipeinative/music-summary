@@ -95,6 +95,9 @@ The new schema of the database has the following specifications:
 | entry_id | PRIMARY | `Integer` | The unique ID of the entry. |
 | source_id | | `Integer` | The source ID. |
 | source_item_id | | `String` | The song's ID in the source. |
+| normalized_album | | `String` | The normalized raw_album column. |
+| normalized_artist | | `String` | The normalized raw_artist column. |
+| normalized_title | | `String` | The normalized raw_title column. |
 | raw_album | | `String` | The album of the song in the source. |
 | raw_artist | | `String` | The artist of the song in the source. |
 | raw_duration | | `Integer` | The duration of the song in the source. |
@@ -128,6 +131,18 @@ The new schema of the database has the following specifications:
 
 ### Tables - Relations
 
+#### album_artists
+
+```sql
+UNIQUE (album_id, display_order)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| album_id | `Integer` | The album ID. |
+| artist_id | `Integer` | The artist ID. |
+| display_order | `Integer` | The display order. |
+
 #### album_authorities
 
 ```sql
@@ -151,6 +166,7 @@ UNIQUE (album_id, locale)
 | album_id | `Integer` | The album ID. |
 | fallback | `Boolean` | Is this localization the fallback/primary translation? |
 | locale | [`DBLocale`](#dblocale) | The language code. |
+| normalized_title | `String` | The normalized title column. |
 | title | `String` | The album title in the given language. |
 
 #### album_tracks
@@ -188,6 +204,7 @@ UNIQUE (artist_id, alias)
 | ----- | ---- | ----------- |
 | artist_id | `Integer` | The artist ID. |
 | alias | `String` | The alias of the artist. |
+| normalized_alias | `String` | The normalized alias column. |
 
 #### artist_authorities
 
@@ -224,6 +241,7 @@ UNIQUE (artist_id, locale)
 | artist_id | `Integer` | The artist ID. |
 | fallback | `Boolean` | Is this localization the fallback/primary translation? |
 | locale | [`DBLocale`](#dblocale) | The language code. |
+| normalized_title | `String` | The normalized title column. |
 | title | `String` | The artist title in the given language. |
 
 #### entry_mapping
@@ -301,6 +319,7 @@ UNIQUE (song_id, locale)
 | song_id | `Integer` | The song ID. |
 | fallback | `Boolean` | Is this localization the fallback/primary translation? |
 | locale | [`DBLocale`](#dblocale) | The language code. |
+| normalized_title | `String` | The normalized title column. |
 | title | `String` | The song title in the given language. |
 
 ### Enums
