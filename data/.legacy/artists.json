@@ -2347,7 +2347,9 @@
     "locale": "ja",
     "synth": false,
     "ai": false,
-    "alias": [],
+    "alias": [
+      "Tsukasa"
+    ],
     "roles": []
   },
   "458679006": {

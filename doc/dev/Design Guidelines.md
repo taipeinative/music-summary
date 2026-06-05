@@ -333,6 +333,7 @@ An 8-bit integer enum.
 | 0 | SINGLE | The single. |
 | 1 | EP | The extended play. |
 | 2 | ALBUM | The album. |
+| 3 | COMPILATION | The compilation album. The album artist is *Various Artist*. |
 
 #### DBArtistTag
 

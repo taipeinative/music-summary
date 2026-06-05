@@ -38,7 +38,7 @@ def normalize_artist(input, whitelist: list[str] = WHITELIST) -> str:
     outputs = parse_artists(input, whitelist, True)
     return ','.join(outputs)
 
-def normalize_title(input) -> str:
+def normalize_title(input, album: bool = False) -> str:
     if input is None:
         return ''
     
@@ -52,6 +52,10 @@ def normalize_title(input) -> str:
 
     # Matches: _WHITESPACE[Remix by Artist]  (Artist Mix)_WHITESPACE_
     output = re.sub(r'[\(\[\{].*(?:[Rr][Ee])?[Mm][Ii][Xx].*[\)\]\}](?:\s*|$)', '', output)
+
+    if album:
+        output = re.sub(r'(?i)\s*-\s*(?:ep|single)', '', output)
+
     return output
 
 def normalize_text(input) -> str:

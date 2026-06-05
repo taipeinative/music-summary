@@ -1,4 +1,5 @@
 from enum import Enum, Flag
+import re
 
 GENRE_MAP = {
     'Classical': 'CLASSICAL',
@@ -64,6 +65,23 @@ SUB_GENRE_MAP = {
 }
 
 # Enums
+
+class DBAlbum(Enum):
+    '''
+    The album types.
+    '''
+    SINGLE = 0
+    EP = 1
+    ALBUM = 2
+    COMPILATION = 3
+
+    @staticmethod
+    def get_album(name: str) -> 'DBAlbum':
+        if re.search(r'(?i)\s*-\s*ep$', name) is not None:
+            return DBAlbum.EP
+        if re.search(r'(?i)\s*-\s*single$', name) is not None:
+            return DBAlbum.SINGLE
+        return DBAlbum.ALBUM
 
 class DBArtistTag(Flag):
     '''

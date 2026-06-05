@@ -49,6 +49,10 @@ ALBUM_TITLES_TABLE = """--sql
         UNIQUE (album_id, locale),
         FOREIGN KEY (album_id) REFERENCES albums(album_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_primary_album_title
+    ON album_titles(album_id)
+    WHERE fallback = true;
 """
 
 ALBUM_TRACKS_TABLE = """--sql
@@ -131,6 +135,10 @@ ARTIST_TITLES_TABLE = """--sql
         UNIQUE (artist_id, locale),
         FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_primary_artist_title
+    ON artist_titles(artist_id)
+    WHERE fallback = true;
 """
 
 ENTRIES_TABLE = """--sql
@@ -216,8 +224,13 @@ SONG_LOCALES_TABLE = """--sql
         song_id integer NOT NULL,
         is_primary boolean NOT NULL,
         locale integer,
+        UNIQUE (song_id),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_primary_song_locale
+    ON song_locales(song_id)
+    WHERE is_primary = true;
 """
 
 SONG_PLAY_COUNTS_TABLE = """--sql
@@ -244,6 +257,10 @@ SONG_TITLES_TABLE = """--sql
         UNIQUE (song_id, locale),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_primary_song_title
+    ON song_titles(song_id)
+    WHERE fallback = true;
 """
 
 SOURCES_TABLE = """--sql
@@ -256,6 +273,77 @@ SOURCES_TABLE = """--sql
         source_type smallint NOT NULL,
         PRIMARY KEY (source_id)
     );
+"""
+
+ALBUM_OVERVIEW = """--sql
+    CREATE OR REPLACE VIEW album_overview AS
+    SELECT
+        a.album_id,
+        at.title,
+        COALESCE(ar.artist_ids, ARRAY[]::int[]) AS artist_ids,
+        COALESCE(ar.artist_names, ARRAY[]::text[]) AS artists,
+        a.album_type,
+        a.disc_count,
+        COALESCE(tc.track_counts, ARRAY[]::int[]) AS track_counts,
+        a.artwork,
+        a.updated_at
+    FROM albums a
+
+    -- title
+    LEFT JOIN LATERAL (
+        SELECT title
+        FROM album_titles
+        WHERE album_id = a.album_id
+        ORDER BY
+            CASE
+                WHEN locale = 32768 THEN 0
+                WHEN fallback THEN 1
+                ELSE 2
+            END
+        LIMIT 1
+    ) at ON TRUE
+
+    -- artists
+    LEFT JOIN LATERAL (
+        SELECT
+            array_agg(
+                COALESCE(pref.title, fb.title)
+                ORDER BY aa.display_order
+            ) AS artist_names,
+            array_agg(
+                aa.artist_id
+                ORDER BY aa.display_order
+            ) AS artist_ids
+        FROM album_artists aa
+
+        LEFT JOIN LATERAL (
+            SELECT title
+            FROM artist_titles
+            WHERE artist_id = aa.artist_id
+            AND locale = 32768
+            LIMIT 1
+        ) pref ON TRUE
+
+        LEFT JOIN LATERAL (
+            SELECT title
+            FROM artist_titles
+            WHERE artist_id = aa.artist_id
+            AND fallback = true
+            LIMIT 1
+        ) fb ON TRUE
+
+        WHERE a.album_id = aa.album_id
+    ) ar ON TRUE
+
+    LEFT JOIN LATERAL (
+        SELECT 
+            array_agg(
+                track_count 
+                ORDER BY disc_number
+            ) AS track_counts
+        FROM album_track_counts
+        WHERE album_id = a.album_id
+    ) tc ON TRUE;
 """
 
 ARTIST_OVERVIEW = """--sql
@@ -286,12 +374,12 @@ ARTIST_OVERVIEW = """--sql
     -- fallback title
     LEFT JOIN artist_titles t
         ON a.artist_id = t.artist_id
-    AND t.fallback = true
+        AND t.fallback = true
 
     -- zh-Hant title
     LEFT JOIN artist_titles t_zh
         ON a.artist_id = t_zh.artist_id
-    AND t_zh.locale = 32768
+        AND t_zh.locale = 32768
 
     -- aggregate aliases
     LEFT JOIN (
@@ -306,7 +394,146 @@ ARTIST_OVERVIEW = """--sql
     -- Apple Music authority
     LEFT JOIN artist_authorities am
         ON a.artist_id = am.artist_id
-    AND am.authority = 1;
+        AND am.authority = 1;
+"""
+
+SONG_OVERVIEW = """--sql
+    CREATE OR REPLACE VIEW song_overview AS
+    SELECT
+        s.song_id,
+        st.title,
+        COALESCE(ar.artist_ids, ARRAY[]::int[]) AS artist_ids,
+        COALESCE(ar.artist_names, ARRAY[]::text[]) AS artists,
+        alb.album_id,
+        alb.album_title AS album,
+        alb.disc_number,
+        alb.disc_count,
+        alb.track_number,
+        alb.track_count,
+        s.vocal,
+        sl.locale,
+        s.genre_tag,
+        s.genre_info,
+        s.media_tag,
+        s.duration,
+        s.release_date,
+        COALESCE(am.authority_codes, ARRAY[]::text[]) AS apple_music_id,
+        s.updated_at
+
+    FROM songs s
+
+    -- title
+    LEFT JOIN LATERAL (
+        SELECT title
+        FROM song_titles
+        WHERE song_id = s.song_id
+        ORDER BY
+            CASE
+                WHEN locale = 32768 THEN 0
+                WHEN fallback THEN 1
+                ELSE 2
+            END
+        LIMIT 1
+    ) st ON TRUE
+
+    -- artists
+    LEFT JOIN LATERAL (
+        SELECT
+            array_agg(
+                COALESCE(pref.title, fb.title)
+                ORDER BY sa.display_order
+            ) AS artist_names,
+            array_agg(
+                artist_id
+                ORDER BY sa.display_order
+            ) AS artist_ids
+        FROM song_artists sa
+
+        LEFT JOIN LATERAL (
+            SELECT title
+            FROM artist_titles
+            WHERE artist_id = sa.artist_id
+            AND locale = 32768
+            LIMIT 1
+        ) pref ON TRUE
+
+        LEFT JOIN LATERAL (
+            SELECT title
+            FROM artist_titles
+            WHERE artist_id = sa.artist_id
+            AND fallback = true
+            LIMIT 1
+        ) fb ON TRUE
+
+        WHERE sa.song_id = s.song_id
+    ) ar ON TRUE
+
+    -- album
+    LEFT JOIN LATERAL (
+        SELECT
+            al.album_id,
+            tt.title AS album_title,
+            atr.disc_number,
+            al.disc_count,
+            atr.track_number,
+            atc.track_count
+
+        FROM album_tracks atr
+
+        JOIN albums al
+        ON atr.album_id = al.album_id
+
+        JOIN LATERAL (
+            SELECT title
+            FROM album_titles
+            WHERE album_id = atr.album_id
+            ORDER BY
+                CASE
+                    WHEN locale = 32768 THEN 0
+                    WHEN fallback THEN 1
+                    ELSE 2
+                END
+            LIMIT 1
+        ) tt ON TRUE
+
+        LEFT JOIN album_track_counts atc
+        ON atr.album_id = atc.album_id
+        AND atr.disc_number = atc.disc_number
+
+        WHERE atr.song_id = s.song_id
+
+        ORDER BY
+            CASE
+                WHEN al.album_type = 3 THEN 2	-- Compilation
+                WHEN al.album_type = 2 THEN 2	-- Album
+                WHEN al.album_type = 1 THEN 1	-- EP
+                ELSE 0							-- Single
+            END,
+            al.release_date NULLS LAST,
+            atr.album_id
+
+        LIMIT 1
+    ) alb ON TRUE
+
+    -- locale
+    LEFT JOIN LATERAL (
+        SELECT locale
+        FROM song_locales
+        WHERE song_id = s.song_id
+        AND is_primary = true
+        LIMIT 1
+    ) sl ON TRUE
+
+    -- Apple Music IDs
+    LEFT JOIN (
+        SELECT
+            song_id,
+            array_agg(authority_code ORDER BY authority_code) AS authority_codes
+        FROM song_authorities
+        WHERE authority = 1
+        GROUP BY song_id
+    ) am
+        ON s.song_id = am.song_id;
 """
 
 def create(connection: psycopg.Connection, sql: LiteralString) -> None:
