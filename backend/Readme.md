@@ -123,3 +123,9 @@ python .\py\clean_legacy_songs.py --manual path\to\library.csv --tmm path\to\tmm
 ```shell
 python .\py\migrate_artists.py --host "localhost" --dbname "music" --user "auto_script" --password "********"
 ```
+
+**[migrate_songs.py](py/migrate_songs.py)** reads the legacy [library.csv](../data/.legacy/library.csv) data and import them into the PostgreSQL database as well. It shares the same mandatory arguments with `migrate_artists.py`.
+
+```shell
+python .\py\migrate_songs.py --host "localhost" --dbname "music" --user "auto_script" --password "********"
+```
