@@ -70,16 +70,35 @@ By default, the program uses the profiles below:
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
+| source | `string` | The source of this data. Can be either `APPLE_MUSIC` or `ITUNES`. |
 | time | `string` | The output time expressed by an ISO 8601 timestamp in local time. |
-| data | `[Song]` | The playlist tracks. |
+| artists | `[Artist]` | All artists in the playlist songs. |
+| albums | `[Album]` | All albums of the playlist songs. |
+| songs | `[Song]` | All songs in the playlists. |
 
-Identity object:
+Album object:
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| id | `number` | The Apple Music id for the object. |
-| nm | `Localization` | The object name. |
-| aw | `string?` | The URL to the artwork image. |
+| id | `string` | The Apple Music id for the album. |
+| title | `Localization` | The album name. |
+| artistID | `[string]` | The artists of the album. |
+| artwork | `string?` | The URL to the artwork image. |
+| compilation | `boolean` | Whether the album is a compilation. |
+| discCount | `number` | The number of discs in the album. |
+| preRelease | `boolean` | Whether the album is a pre-release. |
+| releaseDate | `string?` | The release date in YYYY-MM-DD format. |
+| single | `boolean` | Whether the album is a single. |
+| trackCount | `number` | The number of tracks in each album disc. |
+| upc | `string?` | The [Universal Product Code](https://en.wikipedia.org/wiki/Universal_Product_Code) of the album. |
+
+Artist object:
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| id | `string` | The Apple Music id for the artist. |
+| title | `Localization` | The artist name. |
+| artwork | `string?` | The URL to the artwork image. |
 
 Localization object:
 
@@ -96,19 +115,18 @@ Song object:
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| id | `number` | The Apple Music id for the song. |
-| nm | `Localization` | The song name. |
-| ad | `string?` | The URL to a preview audio track of the song. |
-| al | `Identity?` | The album of the song. |
-| at | `[Identity]` | The artist of the song. |
-| aw | `string?` | The URL to the song cover artwork image. |
-| dc | `number` | The disc number of the song. |
-| du | `number` | The song duration in milliseconds. |
-| dt | `string?` | The release date in YYYY-MM-DD format. |
-| is | `string?` | The [International Standard Recording Code](https://en.wikipedia.org/wiki/International_Standard_Recording_Code) of the song. |
-| lc | `string?` | The language of the song. |
-| pc | `number` | The play count of the song. |
-| tr | `number` | The track number of the song. |
+| id | `string` | The Apple Music id for the song. |
+| title | `Localization` | The song name. |
+| audio | `string?` | The URL to a preview audio track of the song. |
+| albumID | `string` | The album of the song. |
+| artistID | `[string]` | The artists of the song. |
+| discNumber | `number` | The disc number of the song. |
+| duration | `number` | The song duration in milliseconds. |
+| isrc | `string?` | The [International Standard Recording Code](https://en.wikipedia.org/wiki/International_Standard_Recording_Code) of the song. |
+| locale | `string?` | The language of the audio content. |
+| playCount | `number` | The play count of the song. |
+| releaseDate | `string?` | The release date in YYYY-MM-DD format. |
+| trackNumber | `number` | The track number of the song. |
 
 ### Migrate legacy data
 

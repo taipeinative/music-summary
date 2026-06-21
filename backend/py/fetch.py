@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-import AppleMusic as AM
+import music_db.web as web
 
 def main() -> int:
     PROFILES = [
@@ -43,12 +43,12 @@ def main() -> int:
             if DEV_TOKEN == '':
                 raise ValueError(f'Without the developer token, the program couldn\'t fetch the Apple Music API.')
             
-            songs = AM.gather_data(profiles, DEV_TOKEN, args.id, args.verbose)
+            albums, artists, songs = web.gather_data(profiles, DEV_TOKEN, args.id, args.verbose)
 
         else:
-            songs = AM.Alternate.gather_data(profiles, args.id, args.verbose)
+            albums, artists, songs = web.Alternate.gather_data(profiles, args.id, args.verbose)
         
-        AM.dump_data(args.output, songs)
+        web.dump_data(args.output, albums, artists, songs)
         print(f'> Fetched data have been saved to `{args.output}`.')
     
     except Exception as ex:
