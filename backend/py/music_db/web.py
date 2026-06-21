@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
-import math
 from pathlib import Path
 import time
 from typing import TypeVar
@@ -568,6 +567,7 @@ class Alternate:
 
     ITUNES_REQUEST_ID_COUNT = 150
     ITUNES_REQUEST_INTERVAL = 2
+    API_REQUEST_ATTEMPTS = 3
     ITUNES_ALBUM_URL = r'https://itunes.apple.com/lookup?media=music&entity=album&country={}&id={}'
     ITUNES_ARTIST_URL = r'https://itunes.apple.com/lookup?media=music&entity=musicArtist&country={}&id={}'
     ITUNES_TRACK_URL = r'https://itunes.apple.com/lookup?media=music&entity=musicTrack&country={}&id={}'
@@ -687,53 +687,49 @@ class Alternate:
 
     @staticmethod
     def gather_data(profiles: list[tuple[str, str]], playlist_id: str, verbose: bool = True) -> tuple[dict[str, Album], dict[str, Artist], dict[str, Song]]:
+        def _chunk_ids(ids: list[str]) -> list[str]:
+            size = Alternate.ITUNES_REQUEST_ID_COUNT
+            return [','.join(ids[start:start + size]) for start in range(0, len(ids), size)]
+
+        def _request_with_retry(url: str, retry_interval: int) -> requests.Response:
+            attempt = 1
+            while True:
+                try:
+                    return Alternate.request_data(url)
+                except requests.exceptions.RequestException:
+                    if attempt >= Alternate.API_REQUEST_ATTEMPTS:
+                        raise
+                    print('>   Retrying...')
+                    time.sleep(retry_interval)
+                    attempt += 1
+
         albums: dict[str, Album] = {}
         artists: dict[str, Artist] = {}
         songs: dict[str, Song] = {}
-        fail_counter = 0
         for profile in profiles:
             if verbose:
                 print(f'>   Collecting profile: (region: {profile[0]}, locale: {profile[1]})')
-            
-            while fail_counter < 3:
-                try:
-                    res = Alternate.request_data(Alternate.PLAYLIST_URL.format(profile[0], playlist_id, profile[1]))
-                    _ = Alternate.extract_data(Alternate.parse_data(res), profile[1], albums, artists, songs)
-                    break
-                
-                except requests.exceptions.HTTPError:
-                    fail_counter += 1
-                    if fail_counter < 3:
-                        print('>   Retrying...')
-                        time.sleep(1)
-                    else:
-                        print('>   Failed count reached 3 times. Exiting...')
-                        print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
-                        return albums, artists, songs
+
+            try:
+                res = _request_with_retry(Alternate.PLAYLIST_URL.format(profile[0], playlist_id, profile[1]), 1)
+                _ = Alternate.extract_data(Alternate.parse_data(res), profile[1], albums, artists, songs)
+
+            except requests.exceptions.RequestException:
+                print(f'>   Failed count reached {Alternate.API_REQUEST_ATTEMPTS} times. Exiting...')
+                print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
+                return albums, artists, songs
         
-        length = len(songs)
-        song_loop_count = math.ceil(length / Alternate.ITUNES_REQUEST_ID_COUNT)
-        song_list = [song for song in songs.values()]
-        song_query_ids = [
-            ','.join(
-                [
-                    str(song.id)
-                    for song in song_list[i * Alternate.ITUNES_REQUEST_ID_COUNT : min(length, (i + 1) * Alternate.ITUNES_REQUEST_ID_COUNT)]
-                ]
-            )
-            for i in range(song_loop_count)
-        ]
+        song_query_ids = _chunk_ids([str(song.id) for song in songs.values()])
 
         album_disc_counts: dict[str, int] = {}
         album_track_counts: dict[str, dict[int, int]] = {}
-        fail_counter = 0
         for profile in profiles:
             if verbose:
                 print(f'>   Attaching song data to profile: (region: {profile[0]}, locale: {profile[1]})')
             
-            for i in range(song_loop_count):
+            for i, query_ids in enumerate(song_query_ids):
                 try:
-                    res = Alternate.request_data(Alternate.ITUNES_TRACK_URL.format(profile[0], song_query_ids[i]))
+                    res = _request_with_retry(Alternate.ITUNES_TRACK_URL.format(profile[0], query_ids), Alternate.ITUNES_REQUEST_INTERVAL)
                     query = json.loads(res.content)
                     if not isinstance(query, dict):
                         continue
@@ -766,42 +762,26 @@ class Alternate:
                         track_count = int(result.get('trackCount', 0))
                         album_track_count = album_track_counts.get(album_id, {})
                         album_track_count[disc_number] = track_count
+                        album_track_counts[album_id] = album_track_count
 
-                    if i != song_loop_count - 1:
+                    if i != len(song_query_ids) - 1:
                         time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                
-                except requests.exceptions.HTTPError:
-                    fail_counter += 1
-                    if fail_counter < 3:
-                        print('>   Retrying...')
-                        time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                    else:
-                        print('>   Failed count reached 3 times. Exiting...')
-                        print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
-                        return albums, artists, songs
+
+                except requests.exceptions.RequestException:
+                    print(f'>   Failed count reached {Alternate.API_REQUEST_ATTEMPTS} times. Exiting...')
+                    print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
+                    return albums, artists, songs
         
-        length = len(albums)
-        album_loop_count = math.ceil(length / Alternate.ITUNES_REQUEST_ID_COUNT)
-        album_list = [album for album in albums.values()]
-        album_query_ids = [
-            ','.join(
-                [
-                    str(album.id)
-                    for album in album_list[i * Alternate.ITUNES_REQUEST_ID_COUNT : min(length, (i + 1) * Alternate.ITUNES_REQUEST_ID_COUNT)]
-                ]
-            )
-            for i in range(album_loop_count)
-        ]
+        album_query_ids = _chunk_ids([str(album.id) for album in albums.values()])
+        album_artist_ids: set[str] = set()
 
-        unknown_album_artists: list[str] = []
-        fail_counter = 0
         for profile in profiles:
             if verbose:
                 print(f'>   Attaching album data to profile: (region: {profile[0]}, locale: {profile[1]})')
             
-            for i in range(album_loop_count):
+            for i, query_ids in enumerate(album_query_ids):
                 try:
-                    res = Alternate.request_data(Alternate.ITUNES_ALBUM_URL.format(profile[0], album_query_ids[i]))
+                    res = _request_with_retry(Alternate.ITUNES_ALBUM_URL.format(profile[0], query_ids), Alternate.ITUNES_REQUEST_INTERVAL)
                     query = json.loads(res.content)
                     if not isinstance(query, dict):
                         continue
@@ -819,51 +799,31 @@ class Alternate:
                         if not isinstance(target_album, Album):
                             continue
 
-                        disc_number = int(result.get('discNumber', 0))
-                        track_number = int(result.get('trackNumber', 0))
-
                         artist = str(artist_id) if isinstance(artist_id := result.get('artistId'), int) else None
                         target_album.artists = [artist] if isinstance(artist, str) else []
                         target_album.date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ') if isinstance(date_string := result.get('releaseDate'), str) else None
                         target_album.disc_count = album_disc_counts.get(str(album_id), 0)
                         target_album.track_count = album_track_counts.get(str(album_id), {})
 
-                        if isinstance(artist, str) and not isinstance(artists.get(artist), Artist):
-                            unknown_album_artists.append(artist)
+                        if isinstance(artist, str):
+                            album_artist_ids.add(artist)
 
-                    if i != album_loop_count - 1:
+                    if i != len(album_query_ids) - 1:
                         time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                
-                except requests.exceptions.HTTPError:
-                    fail_counter += 1
-                    if fail_counter < 3:
-                        print('>   Retrying...')
-                        time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                    else:
-                        print('>   Failed count reached 3 times. Exiting...')
-                        print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
-                        return albums, artists, songs
-        
-        length = len(unknown_album_artists)
-        artist_loop_count = math.ceil(length / Alternate.ITUNES_REQUEST_ID_COUNT)
-        artist_query_ids = [
-            ','.join(
-                [
-                    artist
-                    for artist in unknown_album_artists[i * Alternate.ITUNES_REQUEST_ID_COUNT : min(length, (i + 1) * Alternate.ITUNES_REQUEST_ID_COUNT)]
-                ]
-            )
-            for i in range(artist_loop_count)
-        ]
 
-        fail_counter = 0
+                except requests.exceptions.RequestException:
+                    print(f'>   Failed count reached {Alternate.API_REQUEST_ATTEMPTS} times. Exiting...')
+                    print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
+                    return albums, artists, songs
+
+        artist_query_ids = _chunk_ids(sorted(album_artist_ids))
         for profile in profiles:
             if verbose:
                 print(f'>   Attaching artist data to profile: (region: {profile[0]}, locale: {profile[1]})')
-            
-            for i in range(artist_loop_count):
+
+            for i, query_ids in enumerate(artist_query_ids):
                 try:
-                    res = Alternate.request_data(Alternate.ITUNES_ARTIST_URL.format(profile[0], artist_query_ids[i]))
+                    res = _request_with_retry(Alternate.ITUNES_ARTIST_URL.format(profile[0], query_ids), Alternate.ITUNES_REQUEST_INTERVAL)
                     query = json.loads(res.content)
                     if not isinstance(query, dict):
                         continue
@@ -874,27 +834,20 @@ class Alternate:
                             continue
 
                         artist_id = result.get('artistId')
-                        if not isinstance(artist_id, int):
-                            continue
-
                         artist_name = result.get('artistName')
-                        if not isinstance(artist_name, str):
+                        if not isinstance(artist_id, int) or not isinstance(artist_name, str):
                             continue
 
-                        artists[str(artist_id)] = Artist(id = str(artist_id), name = Localization.create(profile[1], artist_name))
+                        artist = str(artist_id)
+                        _join_latest(artists, artist, Artist(id = artist, name = Localization.create(profile[1], artist_name)))
 
-                    if i != album_loop_count - 1:
+                    if i != len(artist_query_ids) - 1:
                         time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                
-                except requests.exceptions.HTTPError:
-                    fail_counter += 1
-                    if fail_counter < 3:
-                        print('>   Retrying...')
-                        time.sleep(Alternate.ITUNES_REQUEST_INTERVAL)
-                    else:
-                        print('>   Failed count reached 3 times. Exiting...')
-                        print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
-                        return albums, artists, songs
+
+                except requests.exceptions.RequestException:
+                    print(f'>   Failed count reached {Alternate.API_REQUEST_ATTEMPTS} times. Exiting...')
+                    print(f'>   Last error run info - Region: {profile[0]}, Locale: {profile[1]}, Playlist: {playlist_id}')
+                    return albums, artists, songs
 
         return albums, artists, songs
 
