@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import unicodedata
 
-from AppleMusic import XMLSource
+from music_db.source import Legacy
 import pandas as pd
 
 HERE = Path().absolute()
@@ -183,7 +183,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
     }
 
     xlsx_2512 = pd.read_excel(xlsx_2512_path, sheet_name = '2').rename(columns = xlsx_2512_renamer)
-    xml = XMLSource.load(xml_2512_path, ['Temporary Loops'])
+    xml = Legacy.XMLSource.load(xml_2512_path, ['Temporary Loops'])
     xml_2512 = xml.songs.rename(columns = xml_2512_renamer)
     xml_2512['temp_playlist'] = xml.is_in_playlist('Temporary Loops')
     step_1_output = try_merge(xlsx_2512, xml_2512, step_1_criteria).drop(
@@ -327,7 +327,7 @@ def main(manual_path: Path, tmm_path: Path, xlsx_2512_path: Path,
         'isrc 1', 'isrc 3', 'isrc 4', 'vocal', 'locale', 'album_artwork', 'temp_playlist'
     ]
 
-    xml_2504 = XMLSource.load(xml_2504_path, ['Temporary Loops']).songs.rename(columns = xml_2504_renamer).drop(columns = ['track_count', 'disc_count'])
+    xml_2504 = Legacy.XMLSource.load(xml_2504_path, ['Temporary Loops']).songs.rename(columns = xml_2504_renamer).drop(columns = ['track_count', 'disc_count'])
     step_4_output = try_merge(step_3_output, xml_2504, step_4_criteria)
     step_4_output = step_4_output[step_4_output['merge_status'] != 'right_only'].drop(
         columns = DUPLICATE_COLUMNS
