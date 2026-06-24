@@ -141,6 +141,21 @@ ARTIST_TITLES_TABLE = """--sql
     WHERE fallback = true;
 """
 
+CHANGE_LOG_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS change_log
+    (
+        change_id bigserial PRIMARY KEY,
+        table_name text NOT NULL,
+        row_pk jsonb NOT NULL,
+        operation text NOT NULL,
+        old_data jsonb,
+        new_data jsonb,
+        changed_at timestamp WITH TIME ZONE NOT NULL DEFAULT now(),
+        changed_by text,
+        reason text
+    );
+"""
+
 ENTRIES_TABLE = """--sql
     CREATE TABLE IF NOT EXISTS entries
     (
@@ -161,6 +176,22 @@ ENTRIES_TABLE = """--sql
     );
 """
 
+ENTRY_ISSUES_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS entry_issues
+    (
+        issue_id bigserial PRIMARY KEY,
+        entry_id integer NOT NULL,
+        song_id integer,
+        match_method smallint,
+        reason text NOT NULL,
+        details jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamp WITH TIME ZONE NOT NULL DEFAULT now(),
+        resolved_at timestamp WITH TIME ZONE,
+        FOREIGN KEY (entry_id) REFERENCES entries(entry_id),
+        FOREIGN KEY (song_id) REFERENCES songs(song_id)
+    );
+"""
+
 ENTRY_MAPPING_TABLE = """--sql
     CREATE TABLE IF NOT EXISTS entry_mapping
     (
@@ -174,6 +205,10 @@ ENTRY_MAPPING_TABLE = """--sql
         FOREIGN KEY (entry_id) REFERENCES entries(entry_id),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_confirmed_entry_mapping
+    ON entry_mapping(entry_id)
+    WHERE status = 1;
 """
 
 SONGS_TABLE = """--sql
@@ -273,6 +308,9 @@ SOURCES_TABLE = """--sql
         source_type smallint NOT NULL,
         PRIMARY KEY (source_id)
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_source_file
+    ON sources(source_file);
 """
 
 ALBUM_OVERVIEW = """--sql

@@ -123,6 +123,7 @@ class Album(Identity):
     The album info.
     '''
     artists: list[str] = field(default_factory = lambda: [])
+    artistDisplayNames: Localization = field(default_factory = lambda: Localization())
     artwork: str | None = None
     compilation: bool = False
     date: datetime | None = None
@@ -177,6 +178,7 @@ class Encoder(json.JSONEncoder):
                 'id': o.id,
                 'title': o.name,
                 'artistID': o.artists,
+                'artistDisplayNames': o.artistDisplayNames,
                 'artwork': _get_artwork_url(o.artwork),
                 'compilation': o.compilation,
                 'discCount': o.disc_count,
@@ -261,6 +263,11 @@ def _combine_localization(left: GENERIC, right: GENERIC) -> GENERIC:
     not_presented_locales = right.name.defined_locales() - left.name.defined_locales()
     for locale in not_presented_locales:
         left.name[locale] = right.name[locale]
+
+    if isinstance(left, Album) and isinstance(right, Album):
+        not_presented_locales = right.artistDisplayNames.defined_locales() - left.artistDisplayNames.defined_locales()
+        for locale in not_presented_locales:
+            left.artistDisplayNames[locale] = right.artistDisplayNames[locale]
 
     return left
 
@@ -357,6 +364,7 @@ def extract_data(obj, locale: str, albums: dict[str, Album], artists: dict[str, 
         album_artwork = _get_attribute(obj, 'artwork', str)
         album_compilation = _get_attribute(obj, 'isCompilation', bool)
         album_date = _get_attribute(obj, 'releaseDate', str)
+        album_displayNames = _get_attribute(obj, 'artistName', str)
         album_name = _get_attribute(obj, 'name', str)
         album_prerelease = _get_attribute(obj, 'isPrerelease', bool)
         album_single = _get_attribute(obj, 'isSingle', bool)
@@ -366,6 +374,7 @@ def extract_data(obj, locale: str, albums: dict[str, Album], artists: dict[str, 
             id = album_id,
             name = Localization.create(locale, album_name),
             artists = album_artists,
+            artistDisplayNames = Localization.create(locale, album_displayNames),
             artwork = album_artwork,
             compilation = _as_bool(album_compilation),
             date = _as_datetime(album_date),

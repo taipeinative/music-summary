@@ -1,5 +1,7 @@
-from enum import Enum, Flag
+import json
 import re
+from enum import Enum, Flag
+from typing import Any, Mapping
 
 GENRE_MAP = {
     'Classical': 'CLASSICAL',
@@ -318,3 +320,231 @@ class DBVocal(Enum):
         if name == 'V.X':
             return DBVocal.DUET
         return DBVocal.UNKNOWN
+
+class IssueReason(str, Enum):
+    '''
+    The reason code for an entry issue.
+    '''
+    AUTHORITY_CONFLICT = 'AUTHORITY_CONFLICT'
+    ARTIST_CONFLICT = 'ARTIST_CONFLICT'
+    DURATION_MISMATCH = 'DURATION_MISMATCH'
+    TITLE_CONFLICT = 'TITLE_CONFLICT'
+    MULTIPLE_CANDIDATES = 'MULTIPLE_CANDIDATES'
+    NO_CANDIDATE = 'NO_CANDIDATE'
+    UNSUPPORTED_LOCALE = 'UNSUPPORTED_LOCALE'
+    MISSING_FALLBACK_TITLE = 'MISSING_FALLBACK_TITLE'
+    REFERENCED_ALBUM_MISSING = 'REFERENCED_ALBUM_MISSING'
+    REFERENCED_ARTIST_MISSING = 'REFERENCED_ARTIST_MISSING'
+
+class IssueSeverity(str, Enum):
+    '''
+    The severity of an entry issue.
+    '''
+    ERROR = 'error'
+    WARNING = 'warning'
+    INFO = 'info'
+
+ISSUE_REQUIRED_DETAILS = {
+    IssueReason.AUTHORITY_CONFLICT: (
+        'authority_type',
+        'authority_code',
+        'incoming_song_id',
+        'candidate_song_ids',
+        'conflict_fields',
+    ),
+    IssueReason.ARTIST_CONFLICT: (
+        'incoming_artist_ids',
+        'candidate_artist_ids',
+        'missing_artist_ids',
+        'extra_artist_ids',
+        'authority_matched',
+    ),
+    IssueReason.DURATION_MISMATCH: (
+        'incoming_duration_ms',
+        'candidate_duration_ms',
+        'difference_ms',
+        'tolerance_ms',
+    ),
+    IssueReason.TITLE_CONFLICT: (
+        'locale',
+        'incoming_title',
+        'candidate_title',
+        'normalized_incoming_title',
+        'normalized_candidate_title',
+    ),
+    IssueReason.MULTIPLE_CANDIDATES: (
+        'candidate_song_ids',
+        'candidate_scores',
+        'candidate_methods',
+    ),
+    IssueReason.NO_CANDIDATE: (
+        'searched_authorities',
+        'normalized_title',
+        'artist_ids',
+        'duration_ms',
+    ),
+    IssueReason.UNSUPPORTED_LOCALE: (
+        'original_locale',
+        'mapped_locale',
+        'source_field',
+    ),
+    IssueReason.MISSING_FALLBACK_TITLE: (
+        'audio_locale',
+        'available_title_locales',
+        'title_values',
+        'fallback_failure',
+    ),
+    IssueReason.REFERENCED_ALBUM_MISSING: (
+        'referenced_album_id',
+        'reference_field',
+        'referencing_collection',
+        'referencing_item_id',
+        'reference_context',
+    ),
+    IssueReason.REFERENCED_ARTIST_MISSING: (
+        'referenced_artist_id',
+        'reference_field',
+        'referencing_collection',
+        'referencing_item_id',
+        'reference_context',
+        'compilation',
+        'display_name',
+        'page_url',
+        'suspected_various_artists',
+    ),
+}
+
+ISSUE_DEFAULT_SEVERITY = {
+    IssueReason.AUTHORITY_CONFLICT: IssueSeverity.ERROR,
+    IssueReason.ARTIST_CONFLICT: IssueSeverity.WARNING,
+    IssueReason.DURATION_MISMATCH: IssueSeverity.WARNING,
+    IssueReason.TITLE_CONFLICT: IssueSeverity.WARNING,
+    IssueReason.MULTIPLE_CANDIDATES: IssueSeverity.WARNING,
+    IssueReason.NO_CANDIDATE: IssueSeverity.WARNING,
+    IssueReason.UNSUPPORTED_LOCALE: IssueSeverity.WARNING,
+    IssueReason.MISSING_FALLBACK_TITLE: IssueSeverity.WARNING,
+    IssueReason.REFERENCED_ALBUM_MISSING: IssueSeverity.WARNING,
+    IssueReason.REFERENCED_ARTIST_MISSING: IssueSeverity.WARNING,
+}
+
+class Issue:
+    '''
+    A temporary entry_issues row before it is inserted into the database.
+    '''
+    def __init__(
+        self,
+        entry_id: int,
+        reason: IssueReason | str,
+        details: Mapping[str, Any] | None = None,
+        song_id: int | None = None,
+        match_method: DBMethod | int | None = None,
+        severity: IssueSeverity | str | None = None,
+        source_section: str | None = None,
+        json_path: str | None = None,
+    ):
+        self.entry_id = self._validate_positive_id('entry_id', entry_id)
+        self.song_id = None if song_id is None else self._validate_positive_id('song_id', song_id)
+        self.reason = self._coerce_reason(reason)
+        self.match_method = self._coerce_method(match_method)
+
+        issue_details = dict(details or {})
+        if 'issue' in issue_details and issue_details['issue'] != self.reason.value:
+            raise ValueError('details.issue must match reason.')
+
+        if severity is None and 'severity' in issue_details:
+            severity = issue_details['severity']
+        if severity is None:
+            severity = ISSUE_DEFAULT_SEVERITY[self.reason]
+        self.severity = self._coerce_severity(severity)
+
+        if source_section is None and 'source_section' in issue_details:
+            source_section = issue_details['source_section']
+        if json_path is None and 'json_path' in issue_details:
+            json_path = issue_details['json_path']
+        self.source_section = self._validate_optional_string('source_section', source_section)
+        self.json_path = self._validate_optional_string('json_path', json_path)
+
+        issue_details['issue'] = self.reason.value
+        issue_details['severity'] = self.severity.value
+        issue_details['source_section'] = self.source_section
+        issue_details['json_path'] = self.json_path
+
+        missing_keys = [
+            key
+            for key in ISSUE_REQUIRED_DETAILS[self.reason]
+            if key not in issue_details
+        ]
+        if missing_keys:
+            raise ValueError(f'Missing issue details for {self.reason.value}: {", ".join(missing_keys)}.')
+
+        try:
+            json.dumps(issue_details)
+        except TypeError as error:
+            raise ValueError('details must be JSON-serializable.') from error
+
+        self.details = issue_details
+
+    @staticmethod
+    def _validate_positive_id(name: str, value: int) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f'{name} must be a positive integer.')
+        return value
+
+    @staticmethod
+    def _validate_optional_string(name: str, value: str | None) -> str | None:
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f'{name} must be a string or None.')
+        return value
+
+    @staticmethod
+    def _coerce_reason(value: IssueReason | str) -> IssueReason:
+        if isinstance(value, IssueReason):
+            return value
+        if isinstance(value, str):
+            try:
+                return IssueReason(value)
+            except ValueError as error:
+                raise ValueError(f'Unknown issue reason: {value}.') from error
+        raise ValueError('reason must be an IssueReason or string.')
+
+    @staticmethod
+    def _coerce_severity(value: IssueSeverity | str) -> IssueSeverity:
+        if isinstance(value, IssueSeverity):
+            return value
+        if isinstance(value, str):
+            try:
+                return IssueSeverity(value)
+            except ValueError as error:
+                raise ValueError(f'Unknown issue severity: {value}.') from error
+        raise ValueError('severity must be an IssueSeverity or string.')
+
+    @staticmethod
+    def _coerce_method(value: DBMethod | int | None) -> DBMethod | None:
+        if value is None:
+            return None
+        if isinstance(value, DBMethod):
+            return value
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError('match_method must be a DBMethod, integer, or None.')
+        try:
+            return DBMethod(value)
+        except ValueError as error:
+            raise ValueError(f'Unknown match_method value: {value}.') from error
+
+    def to_details_json(self) -> dict[str, Any]:
+        '''
+        Return the JSON value for entry_issues.details.
+        '''
+        return dict(self.details)
+
+    def to_json(self) -> dict[str, Any]:
+        '''
+        Return a JSON-serializable row for entry_issues.
+        '''
+        return {
+            'entry_id': self.entry_id,
+            'song_id': self.song_id,
+            'match_method': None if self.match_method is None else self.match_method.value,
+            'reason': self.reason.value,
+            'details': self.to_details_json(),
+        }
