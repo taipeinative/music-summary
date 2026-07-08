@@ -3,6 +3,31 @@ import unicodedata
 
 WHITELIST = ['接個吻,開一槍', '接个吻,开一枪', 'Angels & Airwaves', 'Jack & Jack', 'Jonathan & Friends', 'Matisse & Sadko', 'Vargas & Lagola']
 
+BRACKETED_GUEST_CREDIT_PATTERN = re.compile(
+    r'[\(\[\{]\s*(?:ft\.?|feat\.?|featuring|with)\s+(.+?)\s*[\)\]\}]',
+    re.IGNORECASE,
+)
+INLINE_GUEST_CREDIT_PATTERN = re.compile(
+    r'\s+(?:ft\.?|feat\.?|featuring)\s+(.+)$',
+    re.IGNORECASE,
+)
+DASH_WITH_GUEST_CREDIT_PATTERN = re.compile(
+    r'\s+-\s+with\s+(.+)$',
+    re.IGNORECASE,
+)
+
+def extract_guest_credit_names(input) -> list[str]:
+    if not isinstance(input, str):
+        return []
+
+    results: list[str] = []
+    for pattern in (BRACKETED_GUEST_CREDIT_PATTERN, INLINE_GUEST_CREDIT_PATTERN, DASH_WITH_GUEST_CREDIT_PATTERN):
+        for match in pattern.finditer(input):
+            credit = match.group(1).strip()
+            if credit:
+                results.extend(parse_artists(credit, normalize = True))
+    return [name for name in results if name]
+
 def parse_artists(input, whitelist: list[str] = WHITELIST, normalize: bool = False) -> list[str]:
     if input is None:
         return []
@@ -38,6 +63,18 @@ def normalize_artist(input, whitelist: list[str] = WHITELIST) -> str:
     outputs = parse_artists(input, whitelist, True)
     return ','.join(outputs)
 
+def normalize_core_title(input) -> str:
+    output = normalize_text(input)
+    if not output:
+        return ''
+
+    # Matches: (feat. Artist)  [with Artist]
+    output = re.sub(r'\s*[\(\[\{]\s*(?:ft\.?|feat\.?|featuring|with)\s+.*?[\)\]\}]\s*$', '', output, flags = re.IGNORECASE)
+
+    # Matches: ft Artist  featuring Artist
+    output = re.sub(r'\s+(?:ft\.?|feat\.?|featuring)\s+.+$', '', output, flags = re.IGNORECASE)
+    return re.sub(r'\s+', ' ', output).strip()
+
 def normalize_title(input, album: bool = False) -> str:
     if input is None:
         return ''
@@ -50,7 +87,7 @@ def normalize_title(input, album: bool = False) -> str:
     # Matches: _WHITESPACE_(feat. Artist)  [ft. Artist]_WHITESPACE_
     output = re.sub(r'[\(\[\{](?:ft\.?|feat\.?|featuring|with).*[\)\]\}](?:\s*|$)', '', output)
 
-    # Matches: _WHITESPACE[Remix by Artist]  (Artist Mix)_WHITESPACE_
+    # Matches: _WHITESPACE_[Remix by Artist]  (Artist Mix)_WHITESPACE_
     output = re.sub(r'[\(\[\{].*(?:[Rr][Ee])?[Mm][Ii][Xx].*[\)\]\}](?:\s*|$)', '', output)
 
     if album:

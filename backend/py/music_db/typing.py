@@ -485,6 +485,183 @@ class Issue:
         self.details = issue_details
 
     @staticmethod
+    def _merge_details(details: dict[str, Any], extra_details: Mapping[str, Any] | None) -> dict[str, Any]:
+        if extra_details is None:
+            return details
+        details.update(extra_details)
+        return details
+
+    @staticmethod
+    def create_artist_conflict(
+        entry_id: int,
+        incoming_artist_ids: list[int] | list[str],
+        candidate_artist_ids: list[int] | list[str],
+        missing_artist_ids: list[int] | list[str],
+        extra_artist_ids: list[int] | list[str],
+        authority_matched: bool,
+        *,
+        song_id: int | None = None,
+        match_method: DBMethod | int | None = None,
+        extra_details: Mapping[str, Any] | None = None,
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            song_id = song_id,
+            match_method = match_method,
+            reason = IssueReason.ARTIST_CONFLICT,
+            source_section = 'songs',
+            json_path = '$.songs[0].artistID',
+            details = Issue._merge_details(
+                {
+                    'incoming_artist_ids': incoming_artist_ids,
+                    'candidate_artist_ids': candidate_artist_ids,
+                    'missing_artist_ids': missing_artist_ids,
+                    'extra_artist_ids': extra_artist_ids,
+                    'authority_matched': authority_matched,
+                },
+                extra_details,
+            ),
+        )
+
+    @staticmethod
+    def create_authority_conflict(
+        entry_id: int,
+        authority_type: str,
+        authority_code: str | None,
+        incoming_song_id: str | None,
+        candidate_song_ids: list[int],
+        *,
+        song_id: int | None = None,
+        match_method: DBMethod | int | None = None,
+        json_path: str = '$.songs[0]',
+        extra_details: Mapping[str, Any] | None = None,
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            song_id = song_id,
+            match_method = match_method,
+            reason = IssueReason.AUTHORITY_CONFLICT,
+            source_section = 'songs',
+            json_path = json_path,
+            details = Issue._merge_details(
+                {
+                    'authority_type': authority_type,
+                    'authority_code': authority_code,
+                    'incoming_song_id': incoming_song_id,
+                    'candidate_song_ids': candidate_song_ids,
+                    'conflict_fields': ['song_authorities'],
+                },
+                extra_details,
+            ),
+        )
+
+    @staticmethod
+    def create_duration_mismatch(
+        entry_id: int,
+        incoming_duration_ms: int,
+        candidate_duration_ms: int,
+        tolerance_ms: int,
+        *,
+        song_id: int | None = None,
+        match_method: DBMethod | int | None = None,
+        extra_details: Mapping[str, Any] | None = None,
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            song_id = song_id,
+            match_method = match_method,
+            reason = IssueReason.DURATION_MISMATCH,
+            source_section = 'songs',
+            json_path = '$.songs[0].duration',
+            details = Issue._merge_details(
+                {
+                    'incoming_duration_ms': incoming_duration_ms,
+                    'candidate_duration_ms': candidate_duration_ms,
+                    'difference_ms': abs(incoming_duration_ms - candidate_duration_ms),
+                    'tolerance_ms': tolerance_ms,
+                },
+                extra_details,
+            ),
+        )
+
+    @staticmethod
+    def create_multiple_candidates(
+        entry_id: int,
+        candidate_song_ids: list[int],
+        candidate_scores: dict[str, float],
+        candidate_methods: dict[str, str],
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            reason = IssueReason.MULTIPLE_CANDIDATES,
+            source_section = 'songs',
+            json_path = '$.songs[0]',
+            details = {
+                'candidate_song_ids': candidate_song_ids,
+                'candidate_scores': candidate_scores,
+                'candidate_methods': candidate_methods,
+            },
+        )
+
+    @staticmethod
+    def create_no_candidate(
+        entry_id: int,
+        searched_authorities: list[dict[str, str | None]],
+        normalized_title: str,
+        artist_ids: list[str],
+        duration_ms: int,
+        *,
+        extra_details: Mapping[str, Any] | None = None,
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            reason = IssueReason.NO_CANDIDATE,
+            source_section = 'songs',
+            json_path = '$.songs[0]',
+            details = Issue._merge_details(
+                {
+                    'searched_authorities': searched_authorities,
+                    'normalized_title': normalized_title,
+                    'artist_ids': artist_ids,
+                    'duration_ms': duration_ms,
+                },
+                extra_details,
+            ),
+        )
+
+    @staticmethod
+    def create_title_conflict(
+        entry_id: int,
+        incoming_title: str,
+        candidate_title: str | None,
+        normalized_incoming_title: str,
+        normalized_candidate_title: str,
+        *,
+        song_id: int | None = None,
+        match_method: DBMethod | int | None = None,
+        locale: str | None = None,
+        extra_details: Mapping[str, Any] | None = None,
+    ) -> 'Issue':
+        return Issue(
+            entry_id = entry_id,
+            song_id = song_id,
+            match_method = match_method,
+            reason = IssueReason.TITLE_CONFLICT,
+            source_section = 'songs',
+            json_path = '$.songs[0].title',
+            details = Issue._merge_details(
+                {
+                    'locale': locale,
+                    'incoming_title': incoming_title,
+                    'candidate_title': candidate_title,
+                    'normalized_incoming_title': normalized_incoming_title,
+                    'normalized_candidate_title': normalized_candidate_title,
+                },
+                extra_details,
+            ),
+        )
+
+    @staticmethod
     def _validate_positive_id(name: str, value: int) -> int:
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ValueError(f'{name} must be a positive integer.')

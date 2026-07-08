@@ -1,4 +1,5 @@
 .vscode/
 __pycache__/
+log/
 node_modules/
 auth.local.psd1

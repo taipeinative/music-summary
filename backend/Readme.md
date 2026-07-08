@@ -147,3 +147,11 @@ python .\py\migrate_artists.py --host "localhost" --dbname "music" --user "auto_
 ```shell
 python .\py\migrate_songs.py --host "localhost" --dbname "music" --user "auto_script" --password "********"
 ```
+
+### Create entry-to-song mappings
+
+**[match.py](py/match.py)** checks the playlist JSON source ([web.json](../data/fetch/web.json)) and creates mappings based on the Apple Music API id, ISRC, or exact metadata. The user must explicitly add `--apply` flag to apply modifications, otherwise the script would only perfrom a dry run.
+
+```shell
+python .\py\match.py --host "localhost" --dbname "music" --user "auto_script" --password "********" --source-file "../data/fetch/web.json" --log-path "./log/match.log"
+```
