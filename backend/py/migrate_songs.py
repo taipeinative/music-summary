@@ -79,7 +79,7 @@ class LegacySongs:
         
         def extract_dbgenretag(input: list[str]) -> DBGenreTag:
             genre_tag = DBGenreTag.NONE
-            tags = [DBGenreTag.get_sub_genre(x) for x in input]
+            tags = [DBGenreTag.get_genre(x) for x in input] + [DBGenreTag.get_sub_genre(x) for x in input]
             for tag in tags:
                 genre_tag |= tag
             return genre_tag
@@ -444,7 +444,7 @@ def insert_song_data(connection: psycopg.Connection, record: dict[str, Any], sou
 def insert_verified_song(connection: psycopg.Connection, record: dict[str, Any], entry_id: int) -> int:
     apple_music_ids: list[str] = record.get('apple_music', [])
     duration: int = record.get('duration', 0)
-    genre_tag: DBGenreTag = record.get('genre_tag', DBGenreTag.NONE)
+    genre_tag: DBGenreTag = record.get('genre', DBGenreTag.NONE) | record.get('genre_tag', DBGenreTag.NONE)
     genre_info: DBGenreInfo = record.get('genre_info', DBGenreInfo.NONE)
     isrcs: list[str] = record.get('isrc', [])
     locale: DBLocale = record.get('locale', DBLocale.UND)

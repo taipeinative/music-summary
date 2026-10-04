@@ -129,6 +129,14 @@ class DBGenreInfo(Enum):
             return DBGenreInfo.ROCK
         return DBGenreInfo.NONE
 
+class DBGroupStatus(Enum):
+    '''
+    The status of an entry group.
+    '''
+    PENDING = 0
+    CONFIRMED = 1
+    REJECTED = 2
+
 class DBGenreTag(Flag):
     '''
     The music genres.

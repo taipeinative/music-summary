@@ -9,6 +9,7 @@ import sys
 from music_db.matching import (
     DEFAULT_FUZZY_LIMIT,
     DEFAULT_MIN_FUZZY_CONFIDENCE,
+    confirm_entry_group,
     match_source,
 )
 from music_db.query import get_source_by_file
@@ -33,7 +34,9 @@ def main() -> int:
     source = parser.add_mutually_exclusive_group(required = True)
     source.add_argument('--source-id', type = int, help = 'The imported Apple Music source_id to match.')
     source.add_argument('--source-file', help = 'The normalized source_file value to resolve and match.')
+    source.add_argument('--confirm-group-id', type = int, help = 'Confirm an entry_group and merge supplemental metadata into a canonical song.')
 
+    parser.add_argument('--canonical-song-id', type = int, help = 'The canonical song_id used with --confirm-group-id.')
     parser.add_argument('--apply', action = 'store_true', help = 'Write planned mappings and review issues.')
     parser.add_argument('--no-fuzzy', action = 'store_true', help = 'Skip fuzzy candidate generation.')
     parser.add_argument('--fuzzy-limit', type = int, default = DEFAULT_FUZZY_LIMIT, help = 'Maximum fuzzy candidates per entry.')
@@ -57,6 +60,21 @@ def main() -> int:
             user = args.user,
             password = args.password,
         ) as conn:
+            if args.confirm_group_id is not None:
+                if args.canonical_song_id is None:
+                    raise ValueError('--canonical-song-id is required with --confirm-group-id.')
+                result = confirm_entry_group(
+                    conn,
+                    args.confirm_group_id,
+                    args.canonical_song_id,
+                    reason = 'match.py confirm entry group',
+                )
+                if args.json:
+                    print(json.dumps(result, ensure_ascii = False, indent = 2))
+                else:
+                    _print_group_confirmation(result)
+                return 0
+
             source_id = args.source_id
             if source_id is None:
                 source_id = get_source_by_file(conn, args.source_file)
@@ -126,10 +144,13 @@ def _format_summary_lines(summary: dict) -> list[str]:
     if 'groups' in summary:
         lines.append('>   New-song groups:')
         for group in summary['groups']:
+            group_label = f'group {group["group_id"]}; ' if group['group_id'] is not None else ''
+            issue_label = f'; issues {group["issue_ids"]}' if group.get('issue_ids') else ''
             lines.append(
-                f'>     entries {group["entry_ids"]}; '
+                f'>     {group_label}entries {group["entry_ids"]}; '
                 f'unreviewed A {group["unreviewed_entry_ids"]}; '
                 f'ISRC {group["isrcs"]}'
+                f'{issue_label}'
             )
 
     if 'issues' in summary:
@@ -148,6 +169,14 @@ def _format_summary_lines(summary: dict) -> list[str]:
 def _print_summary(summary: dict) -> None:
     for line in _format_summary_lines(summary):
         print(line)
+
+def _print_group_confirmation(result: dict) -> None:
+    print(f'> Entry group {result["group_id"]} confirmed as song {result["canonical_song_id"]}')
+    print(f'>   Confirmed entries: {result["confirmed_entry_ids"]}')
+    print(f'>   Resolved issues: {result["resolved_issue_count"]}')
+    print('>   Supplemental merge:')
+    for key, value in result.get('merge_counts', {}).items():
+        print(f'>     {key}: {value}')
 
 
 def _write_summary_log(summary: dict, started_at: datetime, finished_at: datetime, log_path: Path) -> None:

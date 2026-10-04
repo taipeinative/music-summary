@@ -2,7 +2,7 @@ from collections import Counter
 from typing import Any
 
 from music_db.normalize import normalize_artist, normalize_core_title, normalize_title, parse_artists
-from music_db.typing import DBAuthority, DBLocale, DBStatus
+from music_db.typing import DBAuthority, DBGroupStatus, DBLocale, DBStatus
 import psycopg
 
 def _resolve_album_conflict(connection: psycopg.Connection, album_ids: list[int], target_artist_count: int = 0) -> int | None:
@@ -54,8 +54,7 @@ def does_table_exist(connection: psycopg.Connection, table: str, schema: str = '
               SELECT 1
               FROM pg_tables
               WHERE schemaname = %s
-              AND tablename = %s      
-            );
+              AND tablename = %s);
         """, (schema, table))
         row = cur.fetchone()
         return (row[0] if isinstance(row[0], bool) else False) if row is not None else False
@@ -329,6 +328,29 @@ def get_entry_mapping(connection: psycopg.Connection, entry_id: int, song_id: in
         'status': int(row[4]),
         'created_at': row[5].isoformat() if hasattr(row[5], 'isoformat') else row[5],
     }
+
+def get_pending_entry_group_by_entry_ids(connection: psycopg.Connection, entry_ids: list[int]) -> int | None:
+    unique_entry_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not unique_entry_ids:
+        return None
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT eg.group_id
+            FROM entry_group eg
+            JOIN (
+                SELECT group_id, array_agg(entry_id ORDER BY entry_id) AS entry_ids
+                FROM entry_group_entries
+                GROUP BY group_id
+            ) members
+              ON members.group_id = eg.group_id
+            WHERE eg.status = %s
+              AND members.entry_ids = %s::integer[]
+            ORDER BY eg.group_id
+            LIMIT 1
+        """, (DBGroupStatus.PENDING.value, unique_entry_ids))
+        row = cur.fetchone()
+        return int(row[0]) if row else None
 
 def get_song_ids_by_authority(connection: psycopg.Connection, authority: DBAuthority, authority_code: str) -> list[int]:
     with connection.cursor() as cur:

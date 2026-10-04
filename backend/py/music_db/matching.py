@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from difflib import SequenceMatcher
 import json
 from typing import Any, Iterable, Literal, Mapping
@@ -12,6 +13,7 @@ from music_db.query import (
     get_canonical_song_data,
     get_confirmed_entry_mapping,
     get_entry_mapping,
+    get_pending_entry_group_by_entry_ids,
     get_song_ids_by_authority,
     get_song_ids_by_duration_window,
     get_song_ids_by_title_and_duration,
@@ -19,8 +21,16 @@ from music_db.query import (
     get_source_type,
     get_unreviewed_legacy_entry_ids,
 )
-from music_db.schema import CHANGE_LOG_TABLE, ENTRY_ISSUES_TABLE, ENTRY_MAPPING_TABLE, create
-from music_db.typing import DBAuthority, DBMethod, DBStatus, Issue, IssueReason
+from music_db.schema import (
+    CHANGE_LOG_TABLE,
+    ENTRY_GROUP_ENTRIES_TABLE,
+    ENTRY_GROUP_ISSUES_TABLE,
+    ENTRY_GROUP_TABLE,
+    ENTRY_ISSUES_TABLE,
+    ENTRY_MAPPING_TABLE,
+    create,
+)
+from music_db.typing import DBAuthority, DBGroupStatus, DBLocale, DBMethod, DBStatus, Issue, IssueReason
 import psycopg
 from psycopg.types.json import Jsonb
 
@@ -180,8 +190,10 @@ class MatchSummary:
             result['issues'] = [issue.to_json() for issue in self.issues]
             result['groups'] = [
                 {
+                    'group_id': group.group_id,
                     'entry_ids': list(group.entry_ids),
                     'unreviewed_entry_ids': list(group.unreviewed_entry_ids),
+                    'issue_ids': list(group.issue_ids),
                     'isrcs': list(group.isrcs),
                     'normalized_core_titles': list(group.normalized_core_titles),
                     'min_duration_ms': group.min_duration_ms,
@@ -194,7 +206,9 @@ class MatchSummary:
 @dataclass(frozen = True)
 class NewSongGroup:
     entry_ids: tuple[int, ...]
+    group_id: int | None = None
     unreviewed_entry_ids: tuple[int, ...] = ()
+    issue_ids: tuple[int, ...] = ()
     isrcs: tuple[str, ...] = ()
     normalized_core_titles: tuple[str, ...] = ()
     min_duration_ms: int | None = None
@@ -259,6 +273,15 @@ def _apply_mapping_plan(connection: psycopg.Connection, mapping: MappingPlan) ->
         if existing_confirmed is not None and existing_confirmed != mapping.song_id:
             return
 
+        entries = _load_source_entries_by_ids(connection, [mapping.entry_id])
+        _merge_entries_metadata_into_song(
+            connection,
+            mapping.song_id,
+            entries,
+            changed_by = MATCHER_NAME,
+            reason = 'automatic matching metadata merge',
+        )
+
     _upsert_mapping_with_log(connection, mapping, changed_by = MATCHER_NAME, reason = 'automatic matching')
 
 def _build_candidate_conflict_issues(
@@ -312,6 +335,29 @@ def _build_candidate_conflict_issues(
         )
 
     return issues
+
+def _build_entry_group_details(group: NewSongGroup) -> dict[str, Any]:
+    details: dict[str, Any] = {
+        'entry_ids': list(group.entry_ids),
+        'unreviewed_entry_ids': list(group.unreviewed_entry_ids),
+        'isrcs': list(group.isrcs),
+        'normalized_core_titles': list(group.normalized_core_titles),
+        'min_duration_ms': group.min_duration_ms,
+        'max_duration_ms': group.max_duration_ms,
+    }
+
+    if group.min_duration_ms is not None and group.max_duration_ms is not None:
+        details['duration_difference_ms'] = group.max_duration_ms - group.min_duration_ms
+
+    methods: list[str] = []
+    if group.isrcs:
+        methods.append('ISRC')
+    if len(group.entry_ids) > 1 or group.unreviewed_entry_ids:
+        methods.append('EXACT_METADATA')
+    if methods:
+        details['methods'] = methods
+
+    return details
 
 def _build_entry_pair_conflict_issues(entry: SourceEntry, candidate: SourceEntry) -> list[Issue]:
     issues: list[Issue] = []
@@ -395,6 +441,13 @@ def _build_source_isrc_conflict_issues(entries: Iterable[SourceEntry]) -> dict[i
 
     return issues_by_entry
 
+def _calculate_entry_group_confidence(group: NewSongGroup) -> float | None:
+    if len(group.entry_ids) <= 1 and not group.unreviewed_entry_ids:
+        return None
+    if group.isrcs:
+        return 0.98
+    return 0.90
+
 def _calculate_title_similarity(incoming_title: str, candidate_titles: Iterable[str]) -> float:
     scores = [
         SequenceMatcher(None, incoming_title, candidate_title).ratio()
@@ -468,6 +521,50 @@ def _check_missing_artists_are_credited(
             return False
     return True
 
+def _coerce_positive_int(value: object, fallback: int | None = None) -> int | None:
+    try:
+        number = int(value) # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return fallback
+    return number if number > 0 else fallback
+
+def _confirm_entry_mapping_inside_transaction(
+    connection: psycopg.Connection,
+    entry_id: int,
+    song_id: int,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> None:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT song_id
+            FROM entry_mapping
+            WHERE entry_id = %s
+              AND song_id <> %s
+              AND status <> %s
+        """, (entry_id, song_id, DBStatus.REJECTED.value))
+        other_song_ids = [int(row[0]) for row in cur.fetchall()]
+
+    for other_song_id in other_song_ids:
+        reject_entry_mapping(
+            connection,
+            entry_id,
+            other_song_id,
+            changed_by = changed_by,
+            reason = reason,
+            _inside_transaction = True,
+        )
+
+    selected = MappingPlan(
+        entry_id = entry_id,
+        song_id = song_id,
+        confidence = 1.0,
+        match_method = DBMethod.MANUAL,
+        status = DBStatus.CONFIRMED,
+    )
+    _set_mapping_with_log(connection, selected, changed_by = changed_by, reason = reason)
+
 def _coerce_json_object(value: object) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -496,11 +593,170 @@ def _dedupe_mappings(mappings: Iterable[MappingPlan]) -> list[MappingPlan]:
             by_key[mapping.key()] = mapping
     return list(by_key.values())
 
+def _extract_entry_album_refs(entry: SourceEntry) -> list[dict[str, Any]]:
+    album_by_id = {
+        str(album.get('id')): album
+        for album in entry.raw_json.get('albums', [])
+        if isinstance(album, dict) and _get_non_empty_string(album.get('id'))
+    }
+    result: list[dict[str, Any]] = []
+    album_id = _get_non_empty_string(entry.song.get('albumID'))
+    if not album_id:
+        return result
+
+    album = album_by_id.get(album_id)
+    disc_number = _coerce_positive_int(entry.song.get('discNumber'), 1)
+    track_number = _coerce_positive_int(entry.song.get('trackNumber'), None)
+    item = {
+        'authority_code': album_id,
+        'disc_number': disc_number,
+    }
+    if track_number is not None:
+        item['track_number'] = track_number
+
+    if isinstance(album, dict):
+        track_count = album.get('trackCount')
+        if isinstance(track_count, dict):
+            track_count_value = _coerce_positive_int(track_count.get(str(disc_number)), None)
+            if track_count_value is not None:
+                item['track_count'] = track_count_value
+
+    result.append(item)
+    return result
+
+def _extract_entry_authorities(entry: SourceEntry) -> list[tuple[DBAuthority, str]]:
+    authorities: list[tuple[DBAuthority, str]] = []
+    if entry.apple_music_id:
+        authorities.append((DBAuthority.APPLE_MUSIC, entry.apple_music_id))
+    if entry.isrc:
+        authorities.append((DBAuthority.ISRC, entry.isrc))
+    return _unique_authorities(authorities)
+
+def _extract_entry_release_date(entry: SourceEntry) -> date | None:
+    value = _get_non_empty_string(entry.song.get('releaseDate'))
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+
+def _extract_entry_titles(entry: SourceEntry) -> list[dict[str, Any]]:
+    titles = entry.song.get('title')
+    if not isinstance(titles, dict):
+        return []
+
+    result: list[dict[str, Any]] = []
+    for locale_name, title in titles.items():
+        title_text = _get_non_empty_string(title)
+        if title_text is None:
+            continue
+        locale = _get_title_locale_value(str(locale_name))
+        result.append({
+            'locale': locale,
+            'title': title_text,
+            'normalized_title': normalize_title(title_text),
+        })
+    return result
+
+def _get_album_ids_by_apple_authorities(
+    connection: psycopg.Connection,
+    authority_codes: Iterable[str],
+) -> dict[str, int]:
+    codes = sorted({
+        clean_code
+        for code in authority_codes
+        if (clean_code := _get_non_empty_string(code)) is not None
+    })
+    if not codes:
+        return {}
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT authority_code, album_id
+            FROM album_authorities
+            WHERE authority = %s
+              AND authority_code = ANY(%s)
+        """, (DBAuthority.APPLE_MUSIC.value, codes))
+        return {str(row[0]): int(row[1]) for row in cur.fetchall()}
+
+def _get_entry_group_match_method(group: NewSongGroup) -> DBMethod | None:
+    if len(group.entry_ids) <= 1 and not group.unreviewed_entry_ids:
+        return None
+    return DBMethod.EXACT
+
+def _get_entry_group_row(connection: psycopg.Connection, group_id: int, *, lock: bool = False) -> dict[str, Any] | None:
+    with connection.cursor() as cur:
+        cur.execute(f"""--sql
+            SELECT group_id, status, canonical_song_id, match_method, confidence, details, created_at, resolved_at
+            FROM entry_group
+            WHERE group_id = %s
+            {'FOR UPDATE' if lock else ''}
+        """, (group_id, ))
+        row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        'group_id': int(row[0]),
+        'status': int(row[1]),
+        'canonical_song_id': int(row[2]) if row[2] is not None else None,
+        'match_method': int(row[3]) if row[3] is not None else None,
+        'confidence': float(row[4]) if row[4] is not None else None,
+        'details': row[5] or {},
+        'created_at': row[6],
+        'resolved_at': row[7],
+    }
+
 def _get_non_empty_string(value: object) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
     return text or None
+
+def _get_song_row(connection: psycopg.Connection, song_id: int, *, lock: bool = False) -> dict[str, Any] | None:
+    with connection.cursor() as cur:
+        cur.execute(f"""--sql
+            SELECT song_id, audio, duration, genre_tag, genre_info, media_tag, release_date, vocal, created_at, updated_at
+            FROM songs
+            WHERE song_id = %s
+            {'FOR UPDATE' if lock else ''}
+        """, (song_id, ))
+        row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        'song_id': int(row[0]),
+        'audio': row[1],
+        'duration': int(row[2]),
+        'genre_tag': int(row[3]),
+        'genre_info': int(row[4]),
+        'media_tag': int(row[5]),
+        'release_date': row[6],
+        'vocal': int(row[7]),
+        'created_at': row[8],
+        'updated_at': row[9],
+    }
+
+def _get_title_locale_value(locale: str) -> int:
+    aliases = {
+        'zs': 'zh-Hans',
+        'zt': 'zh-Hant',
+    }
+    return DBLocale.get_locale(aliases.get(locale, locale)).value
+
+def _get_unique_group_entry_ids(connection: psycopg.Connection, group_id: int) -> list[int]:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT entry_id
+            FROM entry_group_entries
+            WHERE group_id = %s
+            ORDER BY entry_id
+        """, (group_id, ))
+        return [int(row[0]) for row in cur.fetchall()]
 
 def _insert_change_log(
     connection: psycopg.Connection,
@@ -519,15 +775,81 @@ def _insert_change_log(
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (
             table_name,
-            Jsonb(dict(row_pk)),
+            Jsonb(_json_safe(dict(row_pk))),
             operation,
-            Jsonb(dict(old_data)) if old_data is not None else None,
-            Jsonb(dict(new_data)) if new_data is not None else None,
+            Jsonb(_json_safe(dict(old_data))) if old_data is not None else None,
+            Jsonb(_json_safe(dict(new_data))) if new_data is not None else None,
             changed_by,
             reason,
         ))
 
-def _insert_issue(connection: psycopg.Connection, issue: Issue) -> None:
+def _json_safe(value: object) -> object:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, 'isoformat'):
+        return value.isoformat() # type: ignore[no-any-return]
+    return value
+
+def _insert_entry_group(connection: psycopg.Connection, group: NewSongGroup) -> int:
+    member_entry_ids = sorted({*group.entry_ids, *group.unreviewed_entry_ids})
+    existing_group_id = get_pending_entry_group_by_entry_ids(connection, member_entry_ids)
+    if existing_group_id is not None:
+        return existing_group_id
+
+    match_method = _get_entry_group_match_method(group)
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO entry_group(status, match_method, confidence, details)
+            VALUES (%s, %s, %s, %s)
+            RETURNING group_id
+        """, (
+            DBGroupStatus.PENDING.value,
+            match_method.value if match_method else None,
+            _calculate_entry_group_confidence(group),
+            Jsonb(_build_entry_group_details(group)),
+        ))
+        inserted = cur.fetchone()
+        if inserted is None:
+            raise RuntimeError('Failed to insert entry group.')
+        return int(inserted[0])
+
+def _insert_entry_group_entries(
+    connection: psycopg.Connection,
+    group_id: int,
+    entry_ids: Iterable[int],
+) -> None:
+    unique_entry_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not unique_entry_ids:
+        return
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO entry_group_entries(group_id, entry_id)
+            SELECT %s, unnest(%s::integer[])
+            ON CONFLICT (group_id, entry_id) DO NOTHING
+        """, (group_id, unique_entry_ids))
+
+def _insert_entry_group_issues(
+    connection: psycopg.Connection,
+    group_id: int,
+    issue_ids: Iterable[int],
+) -> None:
+    unique_issue_ids = sorted({int(issue_id) for issue_id in issue_ids})
+    if not unique_issue_ids:
+        return
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            INSERT INTO entry_group_issues(group_id, issue_id)
+            SELECT %s, unnest(%s::bigint[])
+            ON CONFLICT (group_id, issue_id) DO NOTHING
+        """, (group_id, unique_issue_ids))
+
+def _insert_issue(connection: psycopg.Connection, issue: Issue) -> int:
     row = issue.to_json()
     with connection.cursor() as cur:
         cur.execute("""--sql
@@ -540,13 +862,19 @@ def _insert_issue(connection: psycopg.Connection, issue: Issue) -> None:
               AND details = %s
             LIMIT 1
         """, (row['entry_id'], row['song_id'], row['match_method'], row['reason'], Jsonb(row['details'])))
-        if cur.fetchone() is not None:
-            return
+        existing = cur.fetchone()
+        if existing is not None:
+            return int(existing[0])
 
         cur.execute("""--sql
             INSERT INTO entry_issues(entry_id, song_id, match_method, reason, details)
             VALUES (%s, %s, %s, %s, %s)
+            RETURNING issue_id
         """, (row['entry_id'], row['song_id'], row['match_method'], row['reason'], Jsonb(row['details'])))
+        inserted = cur.fetchone()
+        if inserted is None:
+            raise RuntimeError('Failed to insert entry issue.')
+        return int(inserted[0])
 
 def _load_canonical_songs(
     connection: psycopg.Connection,
@@ -572,7 +900,58 @@ def _load_canonical_songs(
         for song_id, data in songs.items()
     }
 
+def _load_entry_group_source_entries(connection: psycopg.Connection, group_id: int) -> list[SourceEntry]:
+    entry_ids = _get_unique_group_entry_ids(connection, group_id)
+    return _load_source_entries_by_ids(connection, entry_ids)
+
+def _load_source_entries_by_ids(connection: psycopg.Connection, entry_ids: Iterable[int]) -> list[SourceEntry]:
+    entry_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not entry_ids:
+        return []
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT
+                e.entry_id,
+                e.source_id,
+                e.source_item_id,
+                e.normalized_album,
+                e.normalized_artist,
+                e.normalized_title,
+                e.raw_album,
+                e.raw_artist,
+                e.raw_duration,
+                e.raw_json,
+                e.raw_title,
+                src.source_type
+            FROM entries e
+            JOIN sources src
+              ON src.source_id = e.source_id
+            WHERE e.entry_id = ANY(%s)
+            ORDER BY e.entry_id
+        """, (entry_ids, ))
+        rows = [
+            {
+                'entry_id': int(row[0]),
+                'source_id': int(row[1]),
+                'source_item_id': int(row[2]),
+                'normalized_album': row[3],
+                'normalized_artist': row[4],
+                'normalized_title': row[5],
+                'raw_album': row[6],
+                'raw_artist': row[7],
+                'raw_duration': int(row[8]),
+                'raw_json': row[9],
+                'raw_title': row[10],
+                'source_type': int(row[11]),
+            }
+            for row in cur.fetchall()
+        ]
+    return _load_source_entries_from_rows(rows)
+
 def _load_source_entries(connection: psycopg.Connection, source_id: int) -> list[SourceEntry]:
+    return _load_source_entries_from_rows(get_source_entries(connection, source_id))
+
+def _load_source_entries_from_rows(rows: Iterable[Mapping[str, Any]]) -> list[SourceEntry]:
     return [
         SourceEntry(
             entry_id = row['entry_id'],
@@ -588,7 +967,7 @@ def _load_source_entries(connection: psycopg.Connection, source_id: int) -> list
             raw_title = row['raw_title'],
             source_type = row['source_type'],
         )
-        for row in get_source_entries(connection, source_id)
+        for row in rows
     ]
 
 def _match_by_authorities(
@@ -856,6 +1235,126 @@ def _merge_entry_result(summary: MatchSummary, result: EntryMatchResult) -> None
 
     summary.unreviewed_entry_matches += len(result.unreviewed_entry_ids)
 
+def _merge_entry_group_metadata_into_song(
+    connection: psycopg.Connection,
+    group_id: int,
+    song_id: int,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> dict[str, int]:
+    entries = _load_entry_group_source_entries(connection, group_id)
+    return _merge_entries_metadata_into_song(
+        connection,
+        song_id,
+        entries,
+        changed_by = changed_by,
+        reason = reason,
+    )
+
+def _merge_entries_metadata_into_song(
+    connection: psycopg.Connection,
+    song_id: int,
+    entries: Iterable[SourceEntry],
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> dict[str, int]:
+    entries = list(entries)
+    counters = {
+        'song_authorities': 0,
+        'song_titles': 0,
+        'song_updates': 0,
+        'album_tracks': 0,
+        'album_track_counts': 0,
+    }
+
+    authority_pairs: list[tuple[DBAuthority, str]] = []
+    for entry in entries:
+        authority_pairs.extend(_extract_entry_authorities(entry))
+    for authority, authority_code in _unique_authorities(authority_pairs):
+        if _upsert_song_authority_with_log(
+            connection,
+            song_id,
+            authority,
+            authority_code,
+            changed_by = changed_by,
+            reason = reason,
+        ):
+            counters['song_authorities'] += 1
+
+    if _update_song_from_entries_with_log(
+        connection,
+        song_id,
+        entries,
+        changed_by = changed_by,
+        reason = reason,
+    ):
+        counters['song_updates'] += 1
+
+    for title in _merge_title_candidates(entries):
+        if _upsert_song_title_with_log(
+            connection,
+            song_id,
+            title,
+            changed_by = changed_by,
+            reason = reason,
+        ):
+            counters['song_titles'] += 1
+
+    album_refs = [
+        album_ref
+        for entry in entries
+        for album_ref in _extract_entry_album_refs(entry)
+    ]
+    album_ids = _get_album_ids_by_apple_authorities(
+        connection,
+        [album_ref['authority_code'] for album_ref in album_refs],
+    )
+    for album_ref in album_refs:
+        album_id = album_ids.get(str(album_ref['authority_code']))
+        if album_id is None:
+            continue
+        if 'track_number' in album_ref and _upsert_album_track_with_log(
+            connection,
+            album_id,
+            song_id,
+            album_ref['disc_number'],
+            album_ref['track_number'],
+            changed_by = changed_by,
+            reason = reason,
+        ):
+            counters['album_tracks'] += 1
+        if 'track_count' in album_ref and _upsert_album_track_count_with_log(
+            connection,
+            album_id,
+            album_ref['disc_number'],
+            album_ref['track_count'],
+            changed_by = changed_by,
+            reason = reason,
+        ):
+            counters['album_track_counts'] += 1
+
+    return counters
+
+def _merge_title_candidates(entries: Iterable[SourceEntry]) -> list[dict[str, Any]]:
+    by_locale: dict[int, dict[str, Any]] = {}
+    conflicts: set[int] = set()
+    for entry in entries:
+        for title in _extract_entry_titles(entry):
+            existing = by_locale.get(title['locale'])
+            if existing is None:
+                by_locale[title['locale']] = title
+                continue
+            if existing['title'] != title['title']:
+                conflicts.add(title['locale'])
+
+    return [
+        title
+        for locale, title in sorted(by_locale.items())
+        if locale not in conflicts
+    ]
+
 def _rank_mapping(mapping: MappingPlan) -> tuple[int, float]:
     status_rank = 2 if mapping.status == DBStatus.CONFIRMED else 1
     return status_rank, mapping.confidence
@@ -873,6 +1372,71 @@ def _resolve_entry_artists(connection: psycopg.Connection, entry: SourceEntry) -
         name_matched_artist_ids = tuple(sorted(name_matched_ids)),
         normalized_names = normalized_names,
     )
+
+def _resolve_entry_group_issues_with_log(
+    connection: psycopg.Connection,
+    group_id: int,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> int:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT ei.issue_id, ei.entry_id, ei.song_id, ei.match_method, ei.reason, ei.details, ei.created_at, ei.resolved_at
+            FROM entry_issues ei
+            JOIN entry_group_issues egi
+              ON egi.issue_id = ei.issue_id
+            WHERE egi.group_id = %s
+              AND ei.resolved_at IS NULL
+            FOR UPDATE
+        """, (group_id, ))
+        old_rows = [
+            {
+                'issue_id': int(row[0]),
+                'entry_id': int(row[1]),
+                'song_id': int(row[2]) if row[2] is not None else None,
+                'match_method': int(row[3]) if row[3] is not None else None,
+                'reason': row[4],
+                'details': row[5] or {},
+                'created_at': row[6],
+                'resolved_at': row[7],
+            }
+            for row in cur.fetchall()
+        ]
+
+    for old in old_rows:
+        with connection.cursor() as cur:
+            cur.execute("""--sql
+                UPDATE entry_issues
+                SET resolved_at = now()
+                WHERE issue_id = %s
+                RETURNING issue_id, entry_id, song_id, match_method, reason, details, created_at, resolved_at
+            """, (old['issue_id'], ))
+            row = cur.fetchone()
+        if row is None:
+            continue
+        new = {
+            'issue_id': int(row[0]),
+            'entry_id': int(row[1]),
+            'song_id': int(row[2]) if row[2] is not None else None,
+            'match_method': int(row[3]) if row[3] is not None else None,
+            'reason': row[4],
+            'details': row[5] or {},
+            'created_at': row[6],
+            'resolved_at': row[7],
+        }
+        _insert_change_log(
+            connection,
+            table_name = 'entry_issues',
+            row_pk = {'issue_id': old['issue_id']},
+            operation = 'UPDATE',
+            old_data = old,
+            new_data = new,
+            changed_by = changed_by,
+            reason = reason,
+        )
+
+    return len(old_rows)
 
 def _set_mapping_with_log(
     connection: psycopg.Connection,
@@ -916,6 +1480,107 @@ def _set_mapping_with_log(
         reason = reason,
     )
 
+def _unique_authorities(authorities: Iterable[tuple[DBAuthority, str]]) -> list[tuple[DBAuthority, str]]:
+    unique: dict[tuple[int, str], tuple[DBAuthority, str]] = {}
+    for authority, code in authorities:
+        clean_code = _get_non_empty_string(code)
+        if clean_code is None:
+            continue
+        unique[(authority.value, clean_code)] = (authority, clean_code)
+    return [unique[key] for key in sorted(unique)]
+
+def _upsert_album_track_count_with_log(
+    connection: psycopg.Connection,
+    album_id: int,
+    disc_number: int,
+    track_count: int,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> bool:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT album_id, disc_number, track_count
+            FROM album_track_counts
+            WHERE album_id = %s
+              AND disc_number = %s
+            FOR UPDATE
+        """, (album_id, disc_number))
+        old = cur.fetchone()
+        if old is not None:
+            return False
+
+        cur.execute("""--sql
+            INSERT INTO album_track_counts(album_id, disc_number, track_count)
+            VALUES (%s, %s, %s)
+            RETURNING album_id, disc_number, track_count
+        """, (album_id, disc_number, track_count))
+        row = cur.fetchone()
+
+    if row is None:
+        return False
+
+    _insert_change_log(
+        connection,
+        table_name = 'album_track_counts',
+        row_pk = {'album_id': album_id, 'disc_number': disc_number},
+        operation = 'INSERT',
+        old_data = None,
+        new_data = {'album_id': int(row[0]), 'disc_number': int(row[1]), 'track_count': int(row[2])},
+        changed_by = changed_by,
+        reason = reason,
+    )
+    return True
+
+def _upsert_album_track_with_log(
+    connection: psycopg.Connection,
+    album_id: int,
+    song_id: int,
+    disc_number: int,
+    track_number: int,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> bool:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT album_id, song_id, disc_number, track_number
+            FROM album_tracks
+            WHERE album_id = %s
+              AND disc_number = %s
+              AND track_number = %s
+            FOR UPDATE
+        """, (album_id, disc_number, track_number))
+        old = cur.fetchone()
+        if old is not None:
+            if int(old[1]) != song_id:
+                raise ValueError(
+                    f'Album {album_id} disc {disc_number} track {track_number} already belongs to song {int(old[1])}.'
+                )
+            return False
+
+        cur.execute("""--sql
+            INSERT INTO album_tracks(album_id, song_id, disc_number, track_number)
+            VALUES (%s, %s, %s, %s)
+            RETURNING album_id, song_id, disc_number, track_number
+        """, (album_id, song_id, disc_number, track_number))
+        row = cur.fetchone()
+
+    if row is None:
+        return False
+
+    _insert_change_log(
+        connection,
+        table_name = 'album_tracks',
+        row_pk = {'album_id': album_id, 'disc_number': disc_number, 'track_number': track_number},
+        operation = 'INSERT',
+        old_data = None,
+        new_data = {'album_id': int(row[0]), 'song_id': int(row[1]), 'disc_number': int(row[2]), 'track_number': int(row[3])},
+        changed_by = changed_by,
+        reason = reason,
+    )
+    return True
+
 def _upsert_mapping_with_log(
     connection: psycopg.Connection,
     mapping: MappingPlan,
@@ -929,6 +1594,253 @@ def _upsert_mapping_with_log(
 
     _set_mapping_with_log(connection, mapping, changed_by = changed_by, reason = reason, old = old)
 
+def _upsert_song_authority_with_log(
+    connection: psycopg.Connection,
+    song_id: int,
+    authority: DBAuthority,
+    authority_code: str,
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> bool:
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT song_id
+            FROM song_authorities
+            WHERE authority = %s
+              AND authority_code = %s
+            FOR UPDATE
+        """, (authority.value, authority_code))
+        old = cur.fetchone()
+        if old is not None:
+            if int(old[0]) != song_id:
+                raise ValueError(
+                    f'{authority.name} authority {authority_code} already belongs to song {int(old[0])}.'
+                )
+            return False
+
+        cur.execute("""--sql
+            INSERT INTO song_authorities(song_id, authority, authority_code)
+            VALUES (%s, %s, %s)
+            RETURNING song_id, authority, authority_code
+        """, (song_id, authority.value, authority_code))
+        row = cur.fetchone()
+
+    if row is None:
+        return False
+
+    _insert_change_log(
+        connection,
+        table_name = 'song_authorities',
+        row_pk = {'authority': authority.value, 'authority_code': authority_code},
+        operation = 'INSERT',
+        old_data = None,
+        new_data = {'song_id': int(row[0]), 'authority': int(row[1]), 'authority_code': row[2]},
+        changed_by = changed_by,
+        reason = reason,
+    )
+    return True
+
+def _upsert_song_title_with_log(
+    connection: psycopg.Connection,
+    song_id: int,
+    title: Mapping[str, Any],
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> bool:
+    locale = int(title['locale'])
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            SELECT song_id, fallback, locale, normalized_title, title
+            FROM song_titles
+            WHERE song_id = %s
+              AND locale = %s
+            FOR UPDATE
+        """, (song_id, locale))
+        old = cur.fetchone()
+        if old is not None:
+            return False
+
+        cur.execute("""--sql
+            SELECT EXISTS (
+                SELECT 1
+                FROM song_titles
+                WHERE song_id = %s
+                  AND fallback = true
+            )
+        """, (song_id, ))
+        has_fallback = bool(cur.fetchone()[0]) # type: ignore[index]
+        fallback = not has_fallback
+
+        cur.execute("""--sql
+            INSERT INTO song_titles(song_id, fallback, locale, normalized_title, title)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING song_id, fallback, locale, normalized_title, title
+        """, (song_id, fallback, locale, title['normalized_title'], title['title']))
+        row = cur.fetchone()
+
+    if row is None:
+        return False
+
+    _insert_change_log(
+        connection,
+        table_name = 'song_titles',
+        row_pk = {'song_id': song_id, 'locale': locale},
+        operation = 'INSERT',
+        old_data = None,
+        new_data = {
+            'song_id': int(row[0]),
+            'fallback': bool(row[1]),
+            'locale': int(row[2]),
+            'normalized_title': row[3],
+            'title': row[4],
+        },
+        changed_by = changed_by,
+        reason = reason,
+    )
+    return True
+
+def _update_song_from_entries_with_log(
+    connection: psycopg.Connection,
+    song_id: int,
+    entries: Iterable[SourceEntry],
+    *,
+    changed_by: str,
+    reason: str | None,
+) -> bool:
+    old = _get_song_row(connection, song_id, lock = True)
+    if old is None:
+        raise ValueError(f'Unknown song_id: {song_id}')
+
+    release_dates = [release_date for entry in entries if (release_date := _extract_entry_release_date(entry)) is not None]
+    incoming_release_date = min(release_dates) if release_dates else None
+    incoming_audio = next((_get_non_empty_string(entry.song.get('audio')) for entry in entries if _get_non_empty_string(entry.song.get('audio'))), None)
+
+    next_release_date = old['release_date']
+    if incoming_release_date is not None and (next_release_date is None or incoming_release_date < next_release_date):
+        next_release_date = incoming_release_date
+
+    next_audio = old['audio'] or incoming_audio
+    if next_release_date == old['release_date'] and next_audio == old['audio']:
+        return False
+
+    with connection.cursor() as cur:
+        cur.execute("""--sql
+            UPDATE songs
+            SET audio = %s,
+                release_date = %s,
+                updated_at = now()
+            WHERE song_id = %s
+            RETURNING song_id, audio, duration, genre_tag, genre_info, media_tag, release_date, vocal, created_at, updated_at
+        """, (next_audio, next_release_date, song_id))
+        row = cur.fetchone()
+
+    if row is None:
+        return False
+
+    new = {
+        'song_id': int(row[0]),
+        'audio': row[1],
+        'duration': int(row[2]),
+        'genre_tag': int(row[3]),
+        'genre_info': int(row[4]),
+        'media_tag': int(row[5]),
+        'release_date': row[6],
+        'vocal': int(row[7]),
+        'created_at': row[8],
+        'updated_at': row[9],
+    }
+    _insert_change_log(
+        connection,
+        table_name = 'songs',
+        row_pk = {'song_id': song_id},
+        operation = 'UPDATE',
+        old_data = old,
+        new_data = new,
+        changed_by = changed_by,
+        reason = reason,
+    )
+    return True
+
+def confirm_entry_group(
+    connection: psycopg.Connection,
+    group_id: int,
+    canonical_song_id: int,
+    *,
+    changed_by: str = MATCHER_NAME,
+    reason: str | None = None,
+    merge_metadata: bool = True,
+) -> dict[str, Any]:
+    ensure_matching_schema(connection)
+    reason = reason or 'confirm entry group'
+    with connection.transaction():
+        old_group = _get_entry_group_row(connection, group_id, lock = True)
+        if old_group is None:
+            raise ValueError(f'Unknown entry group: {group_id}')
+        if old_group['canonical_song_id'] is not None and old_group['canonical_song_id'] != canonical_song_id:
+            raise ValueError(
+                f'Entry group {group_id} already points to song {old_group["canonical_song_id"]}.'
+            )
+        if _get_song_row(connection, canonical_song_id, lock = True) is None:
+            raise ValueError(f'Unknown song_id: {canonical_song_id}')
+
+        merge_counts = _merge_entry_group_metadata_into_song(
+            connection,
+            group_id,
+            canonical_song_id,
+            changed_by = changed_by,
+            reason = reason,
+        ) if merge_metadata else {}
+
+        entry_ids = _get_unique_group_entry_ids(connection, group_id)
+        for entry_id in entry_ids:
+            _confirm_entry_mapping_inside_transaction(
+                connection,
+                entry_id,
+                canonical_song_id,
+                changed_by = changed_by,
+                reason = reason,
+            )
+
+        if old_group['status'] != DBGroupStatus.CONFIRMED.value or old_group['canonical_song_id'] != canonical_song_id:
+            with connection.cursor() as cur:
+                cur.execute("""--sql
+                    UPDATE entry_group
+                    SET status = %s,
+                        canonical_song_id = %s,
+                        resolved_at = COALESCE(resolved_at, now())
+                    WHERE group_id = %s
+                    RETURNING group_id, status, canonical_song_id, match_method, confidence, details, created_at, resolved_at
+                """, (DBGroupStatus.CONFIRMED.value, canonical_song_id, group_id))
+            new_group = _get_entry_group_row(connection, group_id)
+            if new_group is not None:
+                _insert_change_log(
+                    connection,
+                    table_name = 'entry_group',
+                    row_pk = {'group_id': group_id},
+                    operation = 'UPDATE',
+                    old_data = old_group,
+                    new_data = new_group,
+                    changed_by = changed_by,
+                    reason = reason,
+                )
+
+        resolved_issue_count = _resolve_entry_group_issues_with_log(
+            connection,
+            group_id,
+            changed_by = changed_by,
+            reason = reason,
+        )
+
+    return {
+        'group_id': group_id,
+        'canonical_song_id': canonical_song_id,
+        'confirmed_entry_ids': entry_ids,
+        'resolved_issue_count': resolved_issue_count,
+        'merge_counts': merge_counts,
+    }
+
 def confirm_entry_mapping(
     connection: psycopg.Connection,
     entry_id: int,
@@ -936,41 +1848,34 @@ def confirm_entry_mapping(
     *,
     changed_by: str = MATCHER_NAME,
     reason: str | None = None,
+    merge_metadata: bool = True,
 ) -> None:
     ensure_matching_schema(connection)
+    reason = reason or 'confirm entry mapping'
     with connection.transaction():
-        with connection.cursor() as cur:
-            cur.execute("""--sql
-                SELECT song_id
-                FROM entry_mapping
-                WHERE entry_id = %s
-                  AND song_id <> %s
-                  AND status <> %s
-            """, (entry_id, song_id, DBStatus.REJECTED.value))
-            other_song_ids = [int(row[0]) for row in cur.fetchall()]
-
-        for other_song_id in other_song_ids:
-            reject_entry_mapping(
+        if merge_metadata:
+            entries = _load_source_entries_by_ids(connection, [entry_id])
+            _merge_entries_metadata_into_song(
                 connection,
-                entry_id,
-                other_song_id,
+                song_id,
+                entries,
                 changed_by = changed_by,
                 reason = reason,
-                _inside_transaction = True,
             )
-
-        selected = MappingPlan(
-            entry_id = entry_id,
-            song_id = song_id,
-            confidence = 1.0,
-            match_method = DBMethod.MANUAL,
-            status = DBStatus.CONFIRMED,
+        _confirm_entry_mapping_inside_transaction(
+            connection,
+            entry_id,
+            song_id,
+            changed_by = changed_by,
+            reason = reason,
         )
-        _set_mapping_with_log(connection, selected, changed_by = changed_by, reason = reason)
 
 def ensure_matching_schema(connection: psycopg.Connection) -> None:
     create(connection, ENTRY_MAPPING_TABLE)
     create(connection, ENTRY_ISSUES_TABLE)
+    create(connection, ENTRY_GROUP_TABLE)
+    create(connection, ENTRY_GROUP_ENTRIES_TABLE)
+    create(connection, ENTRY_GROUP_ISSUES_TABLE)
     create(connection, CHANGE_LOG_TABLE)
 
 def group_unmatched_entries(
@@ -1159,8 +2064,37 @@ def match_source(
         with connection.transaction():
             for mapping in summary.mappings:
                 _apply_mapping_plan(connection, mapping)
+            issue_ids_by_entry_id: dict[int, list[int]] = {}
             for issue in summary.issues:
-                _insert_issue(connection, issue)
+                issue_id = _insert_issue(connection, issue)
+                issue_ids_by_entry_id.setdefault(issue.entry_id, []).append(issue_id)
+
+            applied_groups: list[NewSongGroup] = []
+            for group in groups:
+                member_entry_ids = sorted({*group.entry_ids, *group.unreviewed_entry_ids})
+                group_id = _insert_entry_group(connection, group)
+                _insert_entry_group_entries(connection, group_id, member_entry_ids)
+
+                group_issue_ids = tuple(sorted({
+                    issue_id
+                    for entry_id in group.entry_ids
+                    for issue_id in issue_ids_by_entry_id.get(entry_id, [])
+                }))
+                _insert_entry_group_issues(connection, group_id, group_issue_ids)
+                applied_groups.append(
+                    NewSongGroup(
+                        entry_ids = group.entry_ids,
+                        group_id = group_id,
+                        unreviewed_entry_ids = group.unreviewed_entry_ids,
+                        issue_ids = group_issue_ids,
+                        isrcs = group.isrcs,
+                        normalized_core_titles = group.normalized_core_titles,
+                        min_duration_ms = group.min_duration_ms,
+                        max_duration_ms = group.max_duration_ms,
+                    )
+                )
+
+            summary.new_song_groups = applied_groups
 
     return summary
 

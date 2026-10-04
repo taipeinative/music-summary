@@ -211,6 +211,53 @@ ENTRY_MAPPING_TABLE = """--sql
     WHERE status = 1;
 """
 
+ENTRY_GROUP_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS entry_group
+    (
+        group_id bigserial PRIMARY KEY,
+        status smallint NOT NULL,
+        canonical_song_id integer,
+        match_method smallint,
+        confidence double precision,
+        details jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamp WITH TIME ZONE NOT NULL DEFAULT now(),
+        resolved_at timestamp WITH TIME ZONE,
+        FOREIGN KEY (canonical_song_id) REFERENCES songs(song_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS entry_group_status_idx
+    ON entry_group(status);
+"""
+
+ENTRY_GROUP_ENTRIES_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS entry_group_entries
+    (
+        group_id bigint NOT NULL,
+        entry_id integer NOT NULL,
+        created_at timestamp WITH TIME ZONE NOT NULL DEFAULT now(),
+        PRIMARY KEY (group_id, entry_id),
+        FOREIGN KEY (group_id) REFERENCES entry_group(group_id) ON DELETE CASCADE,
+        FOREIGN KEY (entry_id) REFERENCES entries(entry_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS entry_group_entries_entry_id_idx
+    ON entry_group_entries(entry_id);
+"""
+
+ENTRY_GROUP_ISSUES_TABLE = """--sql
+    CREATE TABLE IF NOT EXISTS entry_group_issues
+    (
+        group_id bigint NOT NULL,
+        issue_id bigint NOT NULL,
+        PRIMARY KEY (group_id, issue_id),
+        FOREIGN KEY (group_id) REFERENCES entry_group(group_id) ON DELETE CASCADE,
+        FOREIGN KEY (issue_id) REFERENCES entry_issues(issue_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS entry_group_issues_issue_id_idx
+    ON entry_group_issues(issue_id);
+"""
+
 SONGS_TABLE = """--sql
     CREATE TABLE IF NOT EXISTS songs
     (
@@ -259,7 +306,7 @@ SONG_LOCALES_TABLE = """--sql
         song_id integer NOT NULL,
         is_primary boolean NOT NULL,
         locale integer,
-        UNIQUE (song_id),
+        UNIQUE (song_id, locale),
         FOREIGN KEY (song_id) REFERENCES songs(song_id)
     );
 
@@ -334,10 +381,12 @@ ALBUM_OVERVIEW = """--sql
         WHERE album_id = a.album_id
         ORDER BY
             CASE
-                WHEN locale = 32768 THEN 0
-                WHEN fallback THEN 1
-                ELSE 2
-            END
+                WHEN locale = 2 THEN 0
+                WHEN locale = 32768 THEN 1
+                WHEN fallback THEN 2
+                ELSE 3
+            END,
+            locale
         LIMIT 1
     ) at ON TRUE
 
@@ -345,7 +394,7 @@ ALBUM_OVERVIEW = """--sql
     LEFT JOIN LATERAL (
         SELECT
             array_agg(
-                COALESCE(pref.title, fb.title)
+                pref.title
                 ORDER BY aa.display_order
             ) AS artist_names,
             array_agg(
@@ -358,17 +407,16 @@ ALBUM_OVERVIEW = """--sql
             SELECT title
             FROM artist_titles
             WHERE artist_id = aa.artist_id
-            AND locale = 32768
+            ORDER BY
+                CASE
+                    WHEN locale = 2 THEN 0
+                    WHEN locale = 32768 THEN 1
+                    WHEN fallback THEN 2
+                    ELSE 3
+                END,
+                locale
             LIMIT 1
         ) pref ON TRUE
-
-        LEFT JOIN LATERAL (
-            SELECT title
-            FROM artist_titles
-            WHERE artist_id = aa.artist_id
-            AND fallback = true
-            LIMIT 1
-        ) fb ON TRUE
 
         WHERE a.album_id = aa.album_id
     ) ar ON TRUE
@@ -389,7 +437,7 @@ ARTIST_OVERVIEW = """--sql
     SELECT
         a.artist_id,
 
-        -- fallback title
+        -- display title
         t.locale,
         t.title,
 
@@ -401,18 +449,29 @@ ARTIST_OVERVIEW = """--sql
 
         a.artist_tag,
 
-        -- Apple Music ID
-        am.authority_code AS apple_music_id,
+        -- Apple Music IDs
+        array_to_string(COALESCE(am.authority_codes, ARRAY[]::text[]), ', ') AS apple_music_id,
 
         a.updated_at,
         a.artwork
 
     FROM artists a
 
-    -- fallback title
-    LEFT JOIN artist_titles t
-        ON a.artist_id = t.artist_id
-        AND t.fallback = true
+    -- display title
+    LEFT JOIN LATERAL (
+        SELECT locale, title
+        FROM artist_titles
+        WHERE artist_id = a.artist_id
+        ORDER BY
+            CASE
+                WHEN locale = 2 THEN 0
+                WHEN locale = 32768 THEN 1
+                WHEN fallback THEN 2
+                ELSE 3
+            END,
+            locale
+        LIMIT 1
+    ) t ON TRUE
 
     -- zh-Hant title
     LEFT JOIN artist_titles t_zh
@@ -429,10 +488,16 @@ ARTIST_OVERVIEW = """--sql
     ) al
         ON a.artist_id = al.artist_id
 
-    -- Apple Music authority
-    LEFT JOIN artist_authorities am
-        ON a.artist_id = am.artist_id
-        AND am.authority = 1;
+    -- Apple Music authorities
+    LEFT JOIN (
+        SELECT
+            artist_id,
+            array_agg(authority_code ORDER BY authority_code) AS authority_codes
+        FROM artist_authorities
+        WHERE authority = 1
+        GROUP BY artist_id
+    ) am
+        ON a.artist_id = am.artist_id;
 """
 
 SONG_OVERVIEW = """--sql
@@ -467,10 +532,12 @@ SONG_OVERVIEW = """--sql
         WHERE song_id = s.song_id
         ORDER BY
             CASE
-                WHEN locale = 32768 THEN 0
-                WHEN fallback THEN 1
-                ELSE 2
-            END
+                WHEN locale = 2 THEN 0
+                WHEN locale = 32768 THEN 1
+                WHEN fallback THEN 2
+                ELSE 3
+            END,
+            locale
         LIMIT 1
     ) st ON TRUE
 
@@ -478,7 +545,7 @@ SONG_OVERVIEW = """--sql
     LEFT JOIN LATERAL (
         SELECT
             array_agg(
-                COALESCE(pref.title, fb.title)
+                pref.title
                 ORDER BY sa.display_order
             ) AS artist_names,
             array_agg(
@@ -491,17 +558,16 @@ SONG_OVERVIEW = """--sql
             SELECT title
             FROM artist_titles
             WHERE artist_id = sa.artist_id
-            AND locale = 32768
+            ORDER BY
+                CASE
+                    WHEN locale = 2 THEN 0
+                    WHEN locale = 32768 THEN 1
+                    WHEN fallback THEN 2
+                    ELSE 3
+                END,
+                locale
             LIMIT 1
         ) pref ON TRUE
-
-        LEFT JOIN LATERAL (
-            SELECT title
-            FROM artist_titles
-            WHERE artist_id = sa.artist_id
-            AND fallback = true
-            LIMIT 1
-        ) fb ON TRUE
 
         WHERE sa.song_id = s.song_id
     ) ar ON TRUE
@@ -527,10 +593,12 @@ SONG_OVERVIEW = """--sql
             WHERE album_id = atr.album_id
             ORDER BY
                 CASE
-                    WHEN locale = 32768 THEN 0
-                    WHEN fallback THEN 1
-                    ELSE 2
-                END
+                    WHEN locale = 2 THEN 0
+                    WHEN locale = 32768 THEN 1
+                    WHEN fallback THEN 2
+                    ELSE 3
+                END,
+                locale
             LIMIT 1
         ) tt ON TRUE
 

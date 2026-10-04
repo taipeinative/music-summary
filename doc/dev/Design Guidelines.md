@@ -259,6 +259,54 @@ UNIQUE (entry_id, song_id)
 | status | [`DBStatus`](#dbstatus) | The status of this map. |
 | created_at | `Timestamp` | The timestamp of the entry creation. |
 
+#### entry_group
+
+This table stores candidate groups for entries that did not match an existing canonical song. Each row represents a group that may become one new canonical song after manual review.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| group_id | `Integer` | The group ID. |
+| status | [`DBGroupStatus`](#dbgroupstatus) | The review status of this entry group. |
+| canonical_song_id | `Integer?` | The canonical song created or selected after the group is confirmed. |
+| match_method | [`DBMethod`](#dbmethod)`?` | The primary method that created this group. |
+| confidence | `Float?` | The confidence of this group. |
+| details | `JSON` | The structured summary, grouping evidence, and warning details. |
+| created_at | `Timestamp` | The timestamp of the group creation. |
+| resolved_at | `Timestamp?` | The timestamp when this group is confirmed or rejected. |
+
+`created_at` is the time when `match.py --apply` creates the pending group. There is no `confirmed_at`; a completed review is represented by `resolved_at`.
+
+#### entry_group_entries
+
+```sql
+UNIQUE (group_id, entry_id)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| group_id | `Integer` | The group ID. |
+| entry_id | `Integer` | The entry ID. |
+| created_at | `Timestamp` | The timestamp when the entry is added to the group. |
+
+This table intentionally does not include a role column. The source kind can be recovered from `entry_id -> entries.source_id -> sources.source_type`.
+
+#### entry_group_issues
+
+```sql
+UNIQUE (group_id, issue_id)
+```
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| group_id | `Integer` | The group ID. |
+| issue_id | `Integer` | The review issue ID. |
+
+A group may relate to multiple `entry_issues`, so `issue_id` is not stored directly on `entry_group`.
+
+When an entry group is confirmed, the same transaction should create or select one canonical song, update `entry_group.canonical_song_id`, set `entry_group.status` to `CONFIRMED`, set `entry_group.resolved_at`, create or update confirmed `entry_mapping` rows for all entries in the group, and resolve all linked `entry_issues`.
+
+When an entry group is rejected, only the group itself is rejected. Linked issues should remain unresolved unless the user explicitly resolves them.
+
 #### song_artists
 
 ```sql
@@ -373,6 +421,16 @@ A 8-bit integer enum.
 | 2 | POP | The genre of the song is influenced by pop music. |
 | 3 | RAP | The genre of the song is influenced by rap music. |
 | 4 | ROCK | The genre of the song is influenced by rock music. |
+
+#### DBGroupStatus
+
+A 8-bit integer enum.
+
+| Value | Display Title | Description |
+| ----: | ------------- | ----------- |
+| 0 | PENDING | The entry group is waiting for manual review. |
+| 1 | CONFIRMED | The entry group is confirmed as one canonical song. |
+| 2 | REJECTED | The entry group is rejected. |
 
 #### DBGenreTag
 

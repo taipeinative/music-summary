@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 import json
 from pathlib import Path
@@ -24,6 +24,598 @@ ROOT = next((p.parent for p in (HERE, *HERE.parents) if p.name == 'backend'), HE
 def _create_dataframe():
     import pandas as pd
     return pd.DataFrame()
+
+class DBJSONSource:
+    '''
+    Read the JSON format exported from Library Manager and write it to DB tables.
+    '''
+
+    @staticmethod
+    def _as_datetime(obj: object, field: str, nullable: bool = False) -> datetime | None:
+        if obj is None and nullable:
+            return None
+        if isinstance(obj, datetime):
+            return obj
+        if not isinstance(obj, str):
+            raise TypeError(f'{field} must be a datetime string.')
+
+        value = obj.strip()
+        for format in ('%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(value, format)
+            except ValueError:
+                continue
+
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            raise ValueError(f'{field} is not a valid datetime string.')
+
+    @staticmethod
+    def _as_date(obj: object, field: str, nullable: bool = False) -> date | None:
+        value = DBJSONSource._as_datetime(obj, field, nullable = nullable)
+        if value is None:
+            return None
+        return value.date()
+
+    @staticmethod
+    def _as_enum(obj: object, expected: type[GENERIC_ENUM], field: str) -> GENERIC_ENUM:
+        if isinstance(obj, expected):
+            return obj
+        if isinstance(obj, str):
+            name = obj.strip().upper().replace('-', '_').replace(' ', '_')
+            try:
+                return expected[name]
+            except KeyError:
+                raise ValueError(f'{field} has invalid enum name {obj!r}.')
+        if isinstance(obj, int):
+            try:
+                return expected(obj)
+            except ValueError:
+                raise ValueError(f'{field} has invalid enum value {obj}.')
+        raise TypeError(f'{field} must be an enum name or value.')
+
+    @staticmethod
+    def _as_flag(obj: object, expected: type[GENERIC], field: str) -> GENERIC:
+        if isinstance(obj, expected):
+            return obj
+        if isinstance(obj, int):
+            return expected(obj)
+        if isinstance(obj, str):
+            text = obj.strip()
+            if text == '':
+                return expected(0)
+            if text.isdecimal():
+                return expected(int(text))
+            result = expected(0)
+            for name in [part.strip().upper().replace('-', '_').replace(' ', '_') for part in text.split(',')]:
+                if not name or name == 'NONE':
+                    continue
+                try:
+                    result |= expected[name]
+                except KeyError:
+                    raise ValueError(f'{field} has invalid flag name {name!r}.')
+            return result
+        if isinstance(obj, list):
+            result = expected(0)
+            for index, item in enumerate(obj):
+                result |= DBJSONSource._as_flag(item, expected, f'{field}[{index}]')
+            return result
+        raise TypeError(f'{field} must be a flag name, list, or value.')
+
+    @staticmethod
+    def _as_id(obj: object, field: str) -> int:
+        if isinstance(obj, bool):
+            raise TypeError(f'{field} must be an integer.')
+        if isinstance(obj, int):
+            value = obj
+        elif isinstance(obj, str) and obj.strip().isdecimal():
+            value = int(obj.strip())
+        else:
+            raise TypeError(f'{field} must be an integer.')
+        if value <= 0:
+            raise ValueError(f'{field} must be positive.')
+        return value
+
+    @staticmethod
+    def _as_locale(obj: object, field: str) -> DBLocale:
+        if isinstance(obj, DBLocale):
+            return obj
+        if isinstance(obj, int):
+            return DBLocale(obj)
+        if not isinstance(obj, str):
+            raise TypeError(f'{field} must be a locale.')
+
+        value = obj.strip()
+        enum_name = value.upper().replace('-', '_')
+        if enum_name in DBLocale.__members__:
+            return DBLocale[enum_name]
+        return DBLocale.get_locale(value.lower())
+
+    @staticmethod
+    def _as_string(obj: object, field: str, nullable: bool = False) -> str | None:
+        if obj is None and nullable:
+            return None
+        if not isinstance(obj, str):
+            raise TypeError(f'{field} must be a string.')
+        value = obj.strip()
+        if not value and not nullable:
+            raise ValueError(f'{field} cannot be empty.')
+        return value or None
+
+    @staticmethod
+    def _as_list(obj: object, field: str) -> list:
+        if not isinstance(obj, list):
+            raise TypeError(f'{field} must be a list.')
+        return obj
+
+    @staticmethod
+    def _as_title_map(obj: object, field: str) -> list[dict[str, object]]:
+        if not isinstance(obj, dict):
+            raise TypeError(f'{field} must be an object.')
+
+        rows: list[dict[str, object]] = []
+        for locale_key, value in obj.items():
+            if isinstance(value, dict):
+                text = DBJSONSource._as_string(value.get('text'), f'{field}.{locale_key}.text')
+                fallback = bool(value.get('primary', False))
+            else:
+                text = DBJSONSource._as_string(value, f'{field}.{locale_key}')
+                fallback = False
+            rows.append({
+                'locale': DBJSONSource._as_locale(locale_key, f'{field}.{locale_key}'),
+                'title': text,
+                'fallback': fallback
+            })
+
+        if not rows:
+            raise ValueError(f'{field} must contain at least one title.')
+        if sum(1 for row in rows if row['fallback']) != 1:
+            raise ValueError(f'{field} must contain exactly one fallback title.')
+        return rows
+
+    @staticmethod
+    def _as_authorities(obj: object, field: str) -> list[dict[str, object]]:
+        rows = []
+        for index, item in enumerate(DBJSONSource._as_list(obj or [], field)):
+            if not isinstance(item, dict):
+                raise TypeError(f'{field}[{index}] must be an object.')
+            rows.append({
+                'authority': DBJSONSource._as_enum(item.get('type'), DBAuthority, f'{field}[{index}].type'),
+                'code': DBJSONSource._as_string(item.get('code'), f'{field}[{index}].code')
+            })
+        return sorted(rows, key = lambda row: (row['authority'].value, row['code']))
+
+    @staticmethod
+    def _json_ready(obj: object) -> object:
+        if isinstance(obj, Enum):
+            return obj.name
+        if isinstance(obj, date | datetime):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {key: DBJSONSource._json_ready(value) for key, value in obj.items()}
+        if isinstance(obj, list):
+            return [DBJSONSource._json_ready(value) for value in obj]
+        return obj
+
+    @staticmethod
+    def _log(cur: psycopg.Cursor, table_name: str, row_pk: dict[str, object], operation: str, old_data: object, new_data: object, reason: str) -> None:
+        cur.execute("""--sql
+            INSERT INTO change_log (table_name, row_pk, operation, old_data, new_data, changed_by, reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            table_name,
+            Jsonb(DBJSONSource._json_ready(row_pk)),
+            operation,
+            Jsonb(DBJSONSource._json_ready(old_data)) if old_data is not None else None,
+            Jsonb(DBJSONSource._json_ready(new_data)) if new_data is not None else None,
+            'DBJSONSource',
+            reason
+        ))
+
+    @staticmethod
+    def _sync_sequence(cur: psycopg.Cursor, table_name: str, column_name: str) -> None:
+        if (table_name, column_name) not in {('artists', 'artist_id'), ('albums', 'album_id'), ('songs', 'song_id')}:
+            raise ValueError('Unexpected sequence target.')
+        cur.execute(f"""--sql
+            SELECT setval(
+                pg_get_serial_sequence('{table_name}', '{column_name}'),
+                COALESCE((SELECT MAX({column_name}) FROM {table_name}), 1),
+                true
+            )
+        """)
+
+    @staticmethod
+    def _fetch_exists(cur: psycopg.Cursor, table_name: str, column_name: str, value: int) -> bool:
+        if (table_name, column_name) not in {('artists', 'artist_id'), ('albums', 'album_id'), ('songs', 'song_id')}:
+            raise ValueError('Unexpected lookup target.')
+        cur.execute(f'SELECT 1 FROM {table_name} WHERE {column_name} = %s', (value, ))
+        return cur.fetchone() is not None
+
+    @staticmethod
+    def _replace_rows(cur: psycopg.Cursor, table_name: str, owner_column: str, owner_id: int, rows: list[dict[str, object]], insert_sql: str, insert_params, reason: str) -> None:
+        if (table_name, owner_column) not in {
+            ('artist_titles', 'artist_id'), ('artist_alias', 'artist_id'), ('artist_authorities', 'artist_id'),
+            ('artist_relations', 'artist_id'), ('album_titles', 'album_id'), ('album_artists', 'album_id'),
+            ('album_authorities', 'album_id'), ('album_track_counts', 'album_id'), ('song_titles', 'song_id'),
+            ('song_locales', 'song_id'), ('song_artists', 'song_id'), ('song_authorities', 'song_id'), ('album_tracks', 'song_id')
+        }:
+            raise ValueError('Unexpected replace target.')
+
+        cur.execute(f'SELECT to_jsonb(t) FROM {table_name} t WHERE {owner_column} = %s', (owner_id, ))
+        for old_row, in cur.fetchall():
+            DBJSONSource._log(cur, table_name, {owner_column: owner_id}, 'DELETE', old_row, None, reason)
+
+        cur.execute(f'DELETE FROM {table_name} WHERE {owner_column} = %s', (owner_id, ))
+        for row in rows:
+            cur.execute(insert_sql, insert_params(row))
+            DBJSONSource._log(cur, table_name, {owner_column: owner_id}, 'INSERT', None, row, reason)
+
+    @staticmethod
+    def _upsert_artist(cur: psycopg.Cursor, artist: dict[str, object], reason: str) -> None:
+        artist_id = artist['id']
+        new_data = {
+            'artist_id': artist_id,
+            'artist_tag': artist['artistTag'].value,
+            'artwork': artist['artwork']
+        }
+        cur.execute('SELECT artist_id, artist_tag, artwork FROM artists WHERE artist_id = %s', (artist_id, ))
+        old_row = cur.fetchone()
+        if old_row is None:
+            cur.execute("""--sql
+                INSERT INTO artists (artist_id, artist_tag, artwork)
+                VALUES (%s, %s, %s)
+            """, (artist_id, artist['artistTag'].value, artist['artwork']))
+            DBJSONSource._log(cur, 'artists', {'artist_id': artist_id}, 'INSERT', None, new_data, reason)
+        else:
+            old_data = {'artist_id': old_row[0], 'artist_tag': old_row[1], 'artwork': old_row[2]}
+            if old_data != new_data:
+                cur.execute("""--sql
+                    UPDATE artists
+                    SET artist_tag = %s, artwork = %s, updated_at = now()
+                    WHERE artist_id = %s
+                """, (artist['artistTag'].value, artist['artwork'], artist_id))
+                DBJSONSource._log(cur, 'artists', {'artist_id': artist_id}, 'UPDATE', old_data, new_data, reason)
+
+        DBJSONSource._replace_rows(
+            cur, 'artist_titles', 'artist_id', artist_id, artist['title'],
+            """--sql
+                INSERT INTO artist_titles (artist_id, fallback, locale, normalized_title, title)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+            lambda row: (artist_id, row['fallback'], row['locale'].value, normalize_artist(row['title']), row['title']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'artist_alias', 'artist_id', artist_id, artist['alias'],
+            """--sql
+                INSERT INTO artist_alias (artist_id, alias, normalized_alias)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (artist_id, row['alias'], normalize_artist(row['alias'])),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'artist_authorities', 'artist_id', artist_id, artist['authority'],
+            """--sql
+                INSERT INTO artist_authorities (artist_id, authority, authority_code)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (artist_id, row['authority'].value, row['code']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'artist_relations', 'artist_id', artist_id, artist['relations'],
+            """--sql
+                INSERT INTO artist_relations (artist_id, ref_artist_id, relation_to_ref)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (artist_id, row['ref'], row['role'].value),
+            reason
+        )
+
+    @staticmethod
+    def _upsert_album(cur: psycopg.Cursor, album: dict[str, object], reason: str) -> None:
+        album_id = album['id']
+        new_data = {
+            'album_id': album_id,
+            'album_type': album['albumType'].value,
+            'artwork': album['artwork'],
+            'disc_count': album['discCount'],
+            'release_date': album['releaseDate']
+        }
+        cur.execute('SELECT album_id, album_type, artwork, disc_count, release_date FROM albums WHERE album_id = %s', (album_id, ))
+        old_row = cur.fetchone()
+        if old_row is None:
+            cur.execute("""--sql
+                INSERT INTO albums (album_id, album_type, artwork, disc_count, release_date)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (album_id, album['albumType'].value, album['artwork'], album['discCount'], album['releaseDate']))
+            DBJSONSource._log(cur, 'albums', {'album_id': album_id}, 'INSERT', None, new_data, reason)
+        else:
+            old_data = {'album_id': old_row[0], 'album_type': old_row[1], 'artwork': old_row[2], 'disc_count': old_row[3], 'release_date': old_row[4]}
+            if old_data != new_data:
+                cur.execute("""--sql
+                    UPDATE albums
+                    SET album_type = %s, artwork = %s, disc_count = %s, release_date = %s, updated_at = now()
+                    WHERE album_id = %s
+                """, (album['albumType'].value, album['artwork'], album['discCount'], album['releaseDate'], album_id))
+                DBJSONSource._log(cur, 'albums', {'album_id': album_id}, 'UPDATE', old_data, new_data, reason)
+
+        DBJSONSource._replace_rows(
+            cur, 'album_titles', 'album_id', album_id, album['title'],
+            """--sql
+                INSERT INTO album_titles (album_id, fallback, locale, normalized_title, title)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+            lambda row: (album_id, row['fallback'], row['locale'].value, normalize_title(row['title']), row['title']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'album_artists', 'album_id', album_id, album['artists'],
+            """--sql
+                INSERT INTO album_artists (album_id, artist_id, display_order)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (album_id, row['artist_id'], row['display_order']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'album_track_counts', 'album_id', album_id, album['trackCounts'],
+            """--sql
+                INSERT INTO album_track_counts (album_id, disc_number, track_count)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (album_id, row['disc'], row['trackCount']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'album_authorities', 'album_id', album_id, album['authority'],
+            """--sql
+                INSERT INTO album_authorities (album_id, authority, authority_code)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (album_id, row['authority'].value, row['code']),
+            reason
+        )
+
+    @staticmethod
+    def _upsert_song(cur: psycopg.Cursor, song: dict[str, object], reason: str) -> int:
+        song_id = song.get('id')
+        new_data = {
+            'audio': song['audio'],
+            'duration': song['duration'],
+            'genre_tag': song['genreTag'].value,
+            'genre_info': song['genreInfo'].value,
+            'media_tag': song['mediaTag'].value,
+            'release_date': song['releaseDate'],
+            'vocal': song['vocal'].value
+        }
+
+        old_row = None
+        if song_id is not None:
+            cur.execute('SELECT song_id, audio, duration, genre_tag, genre_info, media_tag, release_date, vocal FROM songs WHERE song_id = %s', (song_id, ))
+            old_row = cur.fetchone()
+
+        if old_row is None:
+            if song_id is None:
+                cur.execute("""--sql
+                    INSERT INTO songs (audio, duration, genre_tag, genre_info, media_tag, release_date, vocal)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING song_id
+                """, (song['audio'], song['duration'], song['genreTag'].value, song['genreInfo'].value, song['mediaTag'].value, song['releaseDate'], song['vocal'].value))
+                song_id = cur.fetchone()[0]
+            else:
+                cur.execute("""--sql
+                    INSERT INTO songs (song_id, audio, duration, genre_tag, genre_info, media_tag, release_date, vocal)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (song_id, song['audio'], song['duration'], song['genreTag'].value, song['genreInfo'].value, song['mediaTag'].value, song['releaseDate'], song['vocal'].value))
+            DBJSONSource._log(cur, 'songs', {'song_id': song_id}, 'INSERT', None, {'song_id': song_id, **new_data}, reason)
+        else:
+            old_data = {
+                'song_id': old_row[0], 'audio': old_row[1], 'duration': old_row[2], 'genre_tag': old_row[3],
+                'genre_info': old_row[4], 'media_tag': old_row[5], 'release_date': old_row[6], 'vocal': old_row[7]
+            }
+            if old_data != {'song_id': song_id, **new_data}:
+                cur.execute("""--sql
+                    UPDATE songs
+                    SET audio = %s, duration = %s, genre_tag = %s, genre_info = %s, media_tag = %s, release_date = %s, vocal = %s, updated_at = now()
+                    WHERE song_id = %s
+                """, (song['audio'], song['duration'], song['genreTag'].value, song['genreInfo'].value, song['mediaTag'].value, song['releaseDate'], song['vocal'].value, song_id))
+                DBJSONSource._log(cur, 'songs', {'song_id': song_id}, 'UPDATE', old_data, {'song_id': song_id, **new_data}, reason)
+
+        DBJSONSource._replace_rows(
+            cur, 'song_titles', 'song_id', song_id, song['title'],
+            """--sql
+                INSERT INTO song_titles (song_id, fallback, locale, normalized_title, title)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+            lambda row: (song_id, row['fallback'], row['locale'].value, normalize_title(row['title']), row['title']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'song_artists', 'song_id', song_id, song['artists'],
+            """--sql
+                INSERT INTO song_artists (song_id, artist_id, display_order, display_title, role)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+            lambda row: (song_id, row['artist_id'], row['display_order'], row['displayTitle'], row['role'].value),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'song_locales', 'song_id', song_id, song['locale'],
+            """--sql
+                INSERT INTO song_locales (song_id, is_primary, locale)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (song_id, row['primary'], row['locale'].value),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'song_authorities', 'song_id', song_id, song['authority'],
+            """--sql
+                INSERT INTO song_authorities (song_id, authority, authority_code)
+                VALUES (%s, %s, %s)
+            """,
+            lambda row: (song_id, row['authority'].value, row['code']),
+            reason
+        )
+        DBJSONSource._replace_rows(
+            cur, 'album_tracks', 'song_id', song_id, song['albums'],
+            """--sql
+                INSERT INTO album_tracks (album_id, song_id, disc_number, track_number)
+                VALUES (%s, %s, %s, %s)
+            """,
+            lambda row: (row['album_id'], song_id, row['disc'], row['track']),
+            reason
+        )
+        return song_id
+
+    @staticmethod
+    def validate(path: str | Path | dict[str, Any]) -> dict[str, Any]:
+        if isinstance(path, dict):
+            raw = path
+            source_path: Path | None = None
+        else:
+            source_path = Path(path)
+            with source_path.open('r', encoding = 'utf-8') as f:
+                raw = json.load(f)
+
+        if not isinstance(raw, dict):
+            raise TypeError('The DB JSON source must be an object.')
+        if raw.get('source') != 'CLIPBOARD':
+            raise ValueError('DBJSONSource only accepts source = CLIPBOARD.')
+
+        artists = []
+        for index, item in enumerate(DBJSONSource._as_list(raw.get('artists'), 'artists')):
+            if not isinstance(item, dict):
+                raise TypeError(f'artists[{index}] must be an object.')
+            artist_id = DBJSONSource._as_id(item.get('id'), f'artists[{index}].id')
+            artists.append({
+                'id': artist_id,
+                'title': DBJSONSource._as_title_map(item.get('title'), f'artists[{index}].title'),
+                'alias': [{'alias': DBJSONSource._as_string(alias, f'artists[{index}].alias')} for alias in DBJSONSource._as_list(item.get('alias', []), f'artists[{index}].alias')],
+                'artistTag': DBJSONSource._as_flag(item.get('artistTag', 'NONE'), DBArtistTag, f'artists[{index}].artistTag'),
+                'artwork': DBJSONSource._as_string(item.get('artwork'), f'artists[{index}].artwork', nullable = True),
+                'authority': DBJSONSource._as_authorities(item.get('authority', []), f'artists[{index}].authority'),
+                'relations': [{
+                    'ref': DBJSONSource._as_id(relation.get('ref'), f'artists[{index}].relations[{relation_index}].ref'),
+                    'role': DBJSONSource._as_enum(relation.get('role'), DBRelation, f'artists[{index}].relations[{relation_index}].role')
+                } for relation_index, relation in enumerate(DBJSONSource._as_list(item.get('relations', []), f'artists[{index}].relations')) if isinstance(relation, dict)]
+            })
+
+        albums = []
+        for index, item in enumerate(DBJSONSource._as_list(raw.get('albums'), 'albums')):
+            if not isinstance(item, dict):
+                raise TypeError(f'albums[{index}] must be an object.')
+            albums.append({
+                'id': DBJSONSource._as_id(item.get('id'), f'albums[{index}].id'),
+                'title': DBJSONSource._as_title_map(item.get('title'), f'albums[{index}].title'),
+                'artists': [{'artist_id': DBJSONSource._as_id(artist_id, f'albums[{index}].artists'), 'display_order': display_order} for display_order, artist_id in enumerate(DBJSONSource._as_list(item.get('artists'), f'albums[{index}].artists'))],
+                'albumType': DBJSONSource._as_enum(item.get('albumType', 'ALBUM'), DBAlbum, f'albums[{index}].albumType'),
+                'releaseDate': DBJSONSource._as_date(item.get('releaseDate'), f'albums[{index}].releaseDate', nullable = True),
+                'artwork': DBJSONSource._as_string(item.get('artwork'), f'albums[{index}].artwork', nullable = True),
+                'discCount': item.get('discCount'),
+                'trackCounts': [{
+                    'disc': DBJSONSource._as_id(track_count.get('disc'), f'albums[{index}].trackCounts[{track_index}].disc'),
+                    'trackCount': DBJSONSource._as_id(track_count.get('trackCount'), f'albums[{index}].trackCounts[{track_index}].trackCount')
+                } for track_index, track_count in enumerate(DBJSONSource._as_list(item.get('trackCounts', []), f'albums[{index}].trackCounts')) if isinstance(track_count, dict)],
+                'authority': DBJSONSource._as_authorities(item.get('authority', []), f'albums[{index}].authority')
+            })
+            if albums[-1]['discCount'] is not None:
+                albums[-1]['discCount'] = DBJSONSource._as_id(albums[-1]['discCount'], f'albums[{index}].discCount')
+
+        songs = []
+        for index, item in enumerate(DBJSONSource._as_list(raw.get('songs'), 'songs')):
+            if not isinstance(item, dict):
+                raise TypeError(f'songs[{index}] must be an object.')
+            locales = [{
+                'locale': DBJSONSource._as_locale(locale.get('locale'), f'songs[{index}].locale[{locale_index}].locale'),
+                'primary': bool(locale.get('primary', False))
+            } for locale_index, locale in enumerate(DBJSONSource._as_list(item.get('locale', []), f'songs[{index}].locale')) if isinstance(locale, dict)]
+            if not locales:
+                raise ValueError(f'songs[{index}].locale must contain at least one locale.')
+            if sum(1 for locale in locales if locale['primary']) != 1:
+                raise ValueError(f'songs[{index}].locale must contain exactly one primary locale.')
+
+            songs.append({
+                'id': DBJSONSource._as_id(item.get('id'), f'songs[{index}].id') if item.get('id') is not None else None,
+                'title': DBJSONSource._as_title_map(item.get('title'), f'songs[{index}].title'),
+                'artists': [{
+                    'artist_id': DBJSONSource._as_id(artist.get('id'), f'songs[{index}].artists[{artist_index}].id'),
+                    'display_order': artist_index,
+                    'displayTitle': DBJSONSource._as_string(artist.get('displayTitle'), f'songs[{index}].artists[{artist_index}].displayTitle', nullable = True),
+                    'role': DBJSONSource._as_enum(artist.get('role', 'MAIN'), DBRole, f'songs[{index}].artists[{artist_index}].role')
+                } for artist_index, artist in enumerate(DBJSONSource._as_list(item.get('artists'), f'songs[{index}].artists')) if isinstance(artist, dict)],
+                'albums': [{
+                    'album_id': DBJSONSource._as_id(album.get('id'), f'songs[{index}].albums[{album_index}].id'),
+                    'disc': DBJSONSource._as_id(album.get('disc'), f'songs[{index}].albums[{album_index}].disc'),
+                    'track': DBJSONSource._as_id(album.get('track'), f'songs[{index}].albums[{album_index}].track')
+                } for album_index, album in enumerate(DBJSONSource._as_list(item.get('albums', []), f'songs[{index}].albums')) if isinstance(album, dict)],
+                'audio': DBJSONSource._as_string(item.get('audio'), f'songs[{index}].audio', nullable = True),
+                'vocal': DBJSONSource._as_enum(item.get('vocal', 'UNKNOWN'), DBVocal, f'songs[{index}].vocal'),
+                'locale': locales,
+                'genreTag': DBJSONSource._as_flag(item.get('genreTag', 'NONE'), DBGenreTag, f'songs[{index}].genreTag'),
+                'genreInfo': DBJSONSource._as_enum(item.get('genreInfo', 'NONE'), DBGenreInfo, f'songs[{index}].genreInfo'),
+                'mediaTag': DBJSONSource._as_flag(item.get('mediaTag', 'NONE'), DBMediaTag, f'songs[{index}].mediaTag'),
+                'duration': DBJSONSource._as_id(item.get('duration'), f'songs[{index}].duration'),
+                'releaseDate': DBJSONSource._as_date(item.get('releaseDate'), f'songs[{index}].releaseDate', nullable = True),
+                'authority': DBJSONSource._as_authorities(item.get('authority', []), f'songs[{index}].authority')
+            })
+
+        return {
+            '_validated': True,
+            'source': 'CLIPBOARD',
+            'time': DBJSONSource._as_datetime(raw.get('time'), 'time'),
+            'path': source_path,
+            'artists': artists,
+            'albums': albums,
+            'songs': songs
+        }
+
+    @staticmethod
+    def load(connection: psycopg.Connection, json_source: dict[str, Any]) -> None:
+        if not json_source.get('_validated'):
+            json_source = DBJSONSource.validate(json_source)
+
+        for table in (
+            ARTISTS_TABLE, ARTIST_TITLES_TABLE, ARTIST_ALIAS_TABLE, ARTIST_AUTHORITIES_TABLE, ARTIST_RELATIONS_TABLE,
+            ALBUMS_TABLE, ALBUM_TITLES_TABLE, ALBUM_ARTISTS_TABLE, ALBUM_AUTHORITIES_TABLE, ALBUM_TRACK_COUNTS_TABLE,
+            SONGS_TABLE, SONG_TITLES_TABLE, SONG_ARTISTS_TABLE, SONG_LOCALES_TABLE, SONG_AUTHORITIES_TABLE, ALBUM_TRACKS_TABLE,
+            CHANGE_LOG_TABLE
+        ):
+            create(connection, table)
+
+        reason = 'DBJSONSource CLIPBOARD import'
+        artist_ids = {artist['id'] for artist in json_source['artists']}
+        album_ids = {album['id'] for album in json_source['albums']}
+
+        with connection.transaction():
+            with connection.cursor() as cur:
+                for artist in json_source['artists']:
+                    for relation in artist['relations']:
+                        if relation['ref'] not in artist_ids and not DBJSONSource._fetch_exists(cur, 'artists', 'artist_id', relation['ref']):
+                            raise ValueError(f'Artist {artist["id"]} references missing artist {relation["ref"]}.')
+                    DBJSONSource._upsert_artist(cur, artist, reason)
+
+                for album in json_source['albums']:
+                    for artist in album['artists']:
+                        if artist['artist_id'] not in artist_ids and not DBJSONSource._fetch_exists(cur, 'artists', 'artist_id', artist['artist_id']):
+                            raise ValueError(f'Album {album["id"]} references missing artist {artist["artist_id"]}.')
+                    DBJSONSource._upsert_album(cur, album, reason)
+
+                for song in json_source['songs']:
+                    for artist in song['artists']:
+                        if artist['artist_id'] not in artist_ids and not DBJSONSource._fetch_exists(cur, 'artists', 'artist_id', artist['artist_id']):
+                            raise ValueError(f'Song references missing artist {artist["artist_id"]}.')
+                    for album in song['albums']:
+                        if album['album_id'] not in album_ids and not DBJSONSource._fetch_exists(cur, 'albums', 'album_id', album['album_id']):
+                            raise ValueError(f'Song references missing album {album["album_id"]}.')
+                    DBJSONSource._upsert_song(cur, song, reason)
+
+                DBJSONSource._sync_sequence(cur, 'artists', 'artist_id')
+                DBJSONSource._sync_sequence(cur, 'albums', 'album_id')
+                DBJSONSource._sync_sequence(cur, 'songs', 'song_id')
 
 class JSONSource:
     '''

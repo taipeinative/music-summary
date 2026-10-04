@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library Portal</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="portal.css">
+</head>
+<body>
+  <div id="login-view" class="login-view">
+    <form id="login-form" class="login-card">
+      <h1>User Login</h1>
+
+      <label>
+        Host
+        <input id="db-host" name="host" autocomplete="hostname" required>
+      </label>
+      <label>
+        Port
+        <input id="db-port" name="port" inputmode="numeric" value="5432" required>
+      </label>
+      <label>
+        Database
+        <input id="db-name" name="database" autocomplete="off" required>
+      </label>
+      <label>
+        User
+        <input id="db-user" name="user" autocomplete="username" required>
+      </label>
+      <label>
+        Password
+        <input id="db-password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button class="primary-btn" type="submit">Log In</button>
+      <p id="login-message" class="form-message"></p>
+    </form>
+  </div>
+
+  <div id="app-view" class="layout hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <h2>Library Portal</h2>
+        <div id="connection-info" class="connection-info"></div>
+      </div>
+      <nav id="sidebar-nav"></nav>
+    </aside>
+
+    <main class="content">
+      <div class="portal-topbar">
+      <header class="portal-heading"><h1 id="portal-title">Songs</h1><div class="portal-actions"><div id="mode-switch" class="hidden"><button data-mode="entry-groups">Entry Group</button><button data-mode="mappings">Entry Mapping</button></div><span id="artist-action"></span><button id="portal-reload" class="toolbar-icon-btn" title="Reload" aria-label="Reload">↻</button></div></header>
+      <div id="portal-query"><button id="portal-filter" class="toolbar-icon-btn" aria-label="Filter and sort"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14v1.5H3V4Zm2.5 5h9v1.5h-9V9ZM8 14h4v1.5H8V14Z"/></svg></button><input id="portal-search" type="search" placeholder="Search" aria-label="Search"></div>
+      <nav id="portal-pagination" aria-label="Pagination"></nav>
+      <p id="portal-error" role="alert" class="form-message"></p>
+      </div>
+      <div hidden id="legacy-controls">
+        <div>
+          <h1 id="view-title">Entry Mapping</h1>
+          <p id="view-count" class="meta"></p>
+        </div>
+        <div class="toolbar">
+          <div id="mapping-controls" class="mapping-controls hidden">
+            <div id="mapping-filters" class="mapping-filters">
+              <select id="status-filter" aria-label="Status filter">
+                <option value="ANY">Any status</option>
+                <option value="PENDING">Pending</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+              <select id="method-filter" aria-label="Method filter">
+                <option value="ANY">Any method</option>
+                <option value="APPLE">Apple</option>
+                <option value="EXACT">Exact</option>
+                <option value="FUZZY">Fuzzy</option>
+                <option value="MANUAL">Manual</option>
+              </select>
+              <input id="mapping-search" type="search" placeholder="Search mappings" aria-label="Search mappings">
+            </div>
+            <div id="table-filters" class="mapping-filters hidden">
+              <button id="add-artist-btn" class="toolbar-icon-btn hidden" type="button" title="Add artist" aria-label="Add artist">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9.25 3h1.5v6.25H17v1.5h-6.25V17h-1.5v-6.25H3v-1.5h6.25V3Z"/></svg>
+              </button>
+              <input id="table-search" type="search" placeholder="Search table" aria-label="Search table">
+              <select id="entry-source-type-filter" class="entry-table-filter hidden" aria-label="Entry source type filter">
+                <option value="ANY">Any source type</option>
+              </select>
+              <select id="entry-mapping-status-filter" class="entry-table-filter hidden" aria-label="Entry mapping status filter">
+                <option value="ANY">Any mapping status</option>
+                <option value="MAPPED">Mapped</option>
+                <option value="UNMAPPED">Unmapped</option>
+                <option value="PENDING">Pending</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+            <div id="group-filters" class="mapping-filters hidden">
+              <button id="group-filter-button" class="toolbar-icon-btn" type="button" title="Filter and sort entry groups" aria-label="Filter and sort entry groups">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14v1.5H3V4Zm2.5 5h9v1.5h-9V9ZM8 14h4v1.5H8V14Z"/></svg>
+              </button>
+              <input id="group-search" type="search" placeholder="Search entry groups" aria-label="Search entry groups">
+            </div>
+            <div id="changelog-filters" class="mapping-filters hidden">
+              <select id="changelog-table-filter" aria-label="Changelog table filter">
+                <option value="ANY">Any table</option>
+              </select>
+              <select id="changelog-operation-filter" aria-label="Changelog operation filter">
+                <option value="ANY">Any operation</option>
+              </select>
+            </div>
+            <nav id="pagination" class="pagination hidden" aria-label="Pagination"></nav>
+          </div>
+          <label class="toggle-label">
+            <input id="include-resolved" type="checkbox">
+            Show resolved issues
+          </label>
+        </div>
+      </div>
+
+      <section id="results" class="results-list"></section>
+    </main>
+
+    <aside id="detail-panel" class="metadata-panel">
+      <div id="detail-content" class="metadata-content">
+        <p class="meta empty-detail">Select a row to view details</p>
+      </div>
+    </aside>
+  </div>
+
+  <div id="search-toast" class="search-toast hidden" role="status" aria-live="polite">Searching...</div>
+
+  <div id="group-filter-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="group-filter-title">
+    <section class="modal-card group-filter-card">
+      <header class="modal-header">
+        <h2 id="group-filter-title">Filter and sort entry groups</h2>
+        <button id="group-filter-close" class="modal-icon-button" type="button" aria-label="Close filter and sort">×</button>
+      </header>
+      <div class="group-filter-content">
+        <section class="group-filter-section" aria-labelledby="group-filter-heading">
+          <div class="group-filter-heading"><h3 id="group-filter-heading">Filters</h3><button id="group-filter-add" class="preview-add-btn" type="button">Add filter</button></div>
+          <div id="group-filter-list" class="group-rule-list"></div>
+        </section>
+        <section class="group-filter-section" aria-labelledby="group-sort-heading">
+          <div class="group-filter-heading"><h3 id="group-sort-heading">Sort order</h3><button id="group-sort-add" class="preview-add-btn" type="button">Add sort</button></div>
+          <div id="group-sort-list" class="group-rule-list"></div>
+        </section>
+        <label class="toggle-label"><input id="include-confirmed-groups" type="checkbox"> Show confirmed groups</label>
+        <p id="group-filter-error" class="group-filter-error hidden" role="alert"></p>
+      </div>
+      <footer class="modal-actions"><div class="modal-actions-right"><button id="group-filter-complete" class="primary-btn" type="button">Complete</button></div></footer>
+    </section>
+  </div>
+
+  <div id="group-entries-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="group-entries-title">
+    <section class="modal-card group-entries-card">
+      <header class="modal-header">
+        <div><p class="modal-kicker">Entry Group</p><h2 id="group-entries-title">Add/Remove entries</h2></div>
+        <button id="group-entries-close" class="modal-icon-button" type="button" aria-label="Close entry editor">×</button>
+      </header>
+      <div class="group-entries-content">
+        <section class="group-entries-section" aria-labelledby="group-added-title">
+          <h3 id="group-added-title">Added entries</h3>
+          <div id="group-added-list" class="group-entry-list"></div>
+        </section>
+        <section class="group-entries-section" aria-labelledby="group-results-title">
+          <h3 id="group-results-title">Search results</h3>
+          <input id="group-entry-search" type="search" placeholder="Search by ID, title, artist or album" aria-label="Search entries">
+          <div id="group-entry-search-status" class="meta" role="status" aria-live="polite">Enter a search term.</div>
+          <div id="group-entry-results" class="group-entry-list"></div>
+          <nav class="group-entry-pagination" aria-label="Entry search pages">
+            <button id="group-entry-prev" class="secondary-btn" type="button" disabled>Previous</button>
+            <span id="group-entry-page"> </span>
+            <button id="group-entry-next" class="secondary-btn" type="button" disabled>Next</button>
+          </nav>
+        </section>
+        <p id="group-entries-error" class="group-filter-error hidden" role="alert"></p>
+      </div>
+      <footer class="modal-actions">
+        <div class="modal-actions-right">
+          <button id="group-entries-cancel" class="secondary-btn" type="button">Cancel</button>
+          <button id="group-entries-save" class="primary-btn" type="button" disabled>Save</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div id="song-preview-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="song-preview-title">
+    <section class="modal-card song-preview-card">
+      <header class="modal-header">
+        <div>
+          <p id="song-preview-kicker" class="modal-kicker">Entry Group</p>
+          <h2 id="song-preview-title">Create Song Preview</h2>
+        </div>
+        <button id="song-preview-close" class="modal-icon-button" type="button" aria-label="Close preview">×</button>
+      </header>
+      <div id="song-preview-content" class="song-preview-content"></div>
+      <footer class="modal-actions">
+        <div id="song-edit-clipboard-actions" class="modal-actions-left hidden">
+          <button id="song-copy-json" class="preview-icon-btn" type="button" title="Copy song as JSON" aria-label="Copy song as JSON">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 2.5h8.5V13H6V2.5Zm1.5 1.5v7.5H13V4H7.5ZM3.5 6H5v9.5h7V17H3.5V6Z"/></svg>
+          </button>
+          <button id="song-paste-json" class="preview-icon-btn" type="button" title="Load song JSON from clipboard" aria-label="Load song JSON from clipboard">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 2.5h6L13.5 4H16v13H4V4h2.5L7 2.5ZM7.6 4l-.4 1.2h5.6L12.4 4H7.6ZM5.5 5.5v10h9v-10h-1l-.4 1.2H6.9l-.4-1.2h-1ZM9.25 8H11v3h2l-3 3-3-3h2.25V8Z"/></svg>
+          </button>
+        </div>
+        <div class="modal-actions-right">
+          <button id="song-preview-cancel" class="secondary-btn" type="button">Cancel</button>
+          <button id="song-preview-confirm" class="primary-btn" type="button">Create Song</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <script src="js/app-config.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="app.js"></script>
+  <script src="js/portal-model.js"></script>
+  <script src="js/portal-enums.js"></script>
+  <script src="js/portal-ui.js"></script>
+</body>
+</html>

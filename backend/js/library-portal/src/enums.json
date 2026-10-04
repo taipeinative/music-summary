@@ -1,0 +1,157 @@
+{
+  "album_type": {
+    "0": "Single",
+    "1": "EP",
+    "2": "Album",
+    "3": "Compilation"
+  },
+  "artist_tag": {
+    "1": "AI",
+    "2": "Synth",
+    "4": "VTuber"
+  },
+  "genre_info": {
+    "0": "None",
+    "1": "Dance-influenced",
+    "2": "Pop-influenced",
+    "3": "Rap-influenced",
+    "4": "Rock-influenced"
+  },
+  "locale": {
+    "0": "zxx",
+    "1": "und",
+    "2": "en",
+    "4": "es",
+    "8": "fr",
+    "16": "hak",
+    "32": "hi",
+    "64": "ja",
+    "128": "ko",
+    "256": "map",
+    "512": "nan",
+    "1024": "th",
+    "2048": "vi",
+    "4096": "yue",
+    "8192": "zh",
+    "16384": "zh-Hans",
+    "32768": "zh-Hant"
+  },
+  "source_type": {
+    "0": "ISRC",
+    "1": "Apple Music",
+    "2": "iTunes",
+    "3": "Spotify",
+    "4": "SoundCloud",
+    "5": "YouTube",
+    "6": "Discogs",
+    "7": "Rate Your Music"
+  },
+  "role": {
+    "0": "Main",
+    "1": "Featured",
+    "2": "Remix"
+  },
+  "relation": {
+    "0": "None",
+    "1": "Member Of"
+  },
+  "vocal": {
+    "0": "Acoustic",
+    "1": "Female",
+    "2": "Male",
+    "3": "Duet",
+    "4": "Unknown"
+  },
+  "status": {
+    "0": "Pending",
+    "1": "Confirmed",
+    "2": "Rejected"
+  },
+  "method": {
+    "0": "Apple",
+    "1": "Exact",
+    "2": "Fuzzy",
+    "3": "Manual"
+  },
+  "category": {
+    "incoming": "Incoming",
+    "pending": "Pending"
+  },
+  "mappingStatus": {
+    "PENDING": "Pending",
+    "CONFIRMED": "Confirmed",
+    "REJECTED": "Rejected",
+    "MAPPED": "Mapped",
+    "UNMAPPED": "Unmapped"
+  },
+  "issue": {
+    "AUTHORITY_CONFLICT": "Authority Conflict",
+    "ARTIST_CONFLICT": "Artist Conflict",
+    "DURATION_MISMATCH": "Duration Mismatch",
+    "TITLE_CONFLICT": "Title Conflict",
+    "MULTIPLE_CANDIDATES": "Multiple Candidates",
+    "NO_CANDIDATE": "No Candidate",
+    "MISSING_FALLBACK_TITLE": "Missing Fallback Title",
+    "REFERENCED_ALBUM_MISSING": "Referenced Album Missing",
+    "REFERENCED_ARTIST_MISSING": "Referenced Artist Missing",
+    "UNSUPPORTED_LOCALE": "Unsupported locale"
+  },
+  "genre_tag": {
+    "1": "Classical",
+    "2": "Country",
+    "4": "Dance",
+    "8": "Hip-hop",
+    "16": "Instrumental",
+    "32": "Pop",
+    "64": "R&B",
+    "128": "Rock",
+    "256": "Color Bass",
+    "512": "Future Bass",
+    "1024": "Kawaii Future Bass",
+    "2048": "Melodic Bass",
+    "4096": "Downtempo",
+    "8192": "Drum and Bass",
+    "16384": "Brostep",
+    "32768": "Chillstep",
+    "65536": "Melodic Dubstep",
+    "131072": "Riddim",
+    "262144": "Funk",
+    "524288": "Glitch Hop",
+    "1048576": "Artcore",
+    "2097152": "Futurecore",
+    "4194304": "Happycore",
+    "8388608": "Hardcore",
+    "16777216": "Hardstyle",
+    "33554432": "J-core",
+    "67108864": "Ambient House",
+    "134217728": "Complextro",
+    "268435456": "Electro House",
+    "536870912": "Future House",
+    "1073741824": "Progressive House",
+    "2147483648": "Slap House",
+    "4294967296": "Tropical House",
+    "8589934592": "Jazz",
+    "17179869184": "Lo-fi",
+    "34359738368": "Alternative Rock",
+    "68719476736": "Metal",
+    "137438953472": "Soft Rock",
+    "274877906944": "Synthwave",
+    "549755813888": "Trance",
+    "1099511627776": "Trap"
+  },
+  "media_tag": {
+    "1": "Anime",
+    "2": "Drama",
+    "4": "Game",
+    "8": "Arcaea",
+    "16": "Cities: Skylines",
+    "32": "Cytus",
+    "64": "Dancing Line",
+    "128": "Deemo",
+    "256": "Friday Night Funkin",
+    "512": "Lanota",
+    "1024": "Phigros",
+    "2048": "Rotaeno",
+    "4096": "Voez"
+  }
+}
