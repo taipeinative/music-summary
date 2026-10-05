@@ -5,6 +5,7 @@ let artistArtworkPreviewTimer = null;
 let previewAudio = null;
 let previewAudioButton = null;
 let previewAudioUrl = '';
+let previewBpmState = { taps: [], bpm: null };
 let modalOpenCount = 0;
 let searchToastCount = 0;
 let groupEntriesEditor = null;
@@ -246,8 +247,14 @@ function renderAudioInput(value, attributeName, label) {
     <div class="preview-audio-input">
       <input ${attributeName} value="${escapeHtml(value || '')}" aria-label="${escapeHtml(label)}">
       ${renderIconButton('audio-toggle', 'Play audio')}
+      <button class="preview-icon-btn preview-bpm-button" type="button" data-bpm-tap aria-label="Tap to calculate BPM" title="Tap to calculate BPM" aria-live="polite">${previewBpmState.bpm ?? 'BPM'}</button>
     </div>
   `;
+}
+
+function tapBpm(button) {
+  previewBpmState = PortalModel.tapBpm(previewBpmState, performance.now());
+  button.textContent = previewBpmState.bpm === null ? 'BPM' : String(previewBpmState.bpm);
 }
 
 function renderArtistRoleSelect(value, attributeName = 'data-artist-role') {
@@ -378,9 +385,11 @@ function toggleDetailAudio(button) {
     return;
   }
 
+  stopPreviewAudio();
   if (detailAudio && detailAudioButton === button) {
     if (detailAudio.paused) {
-      detailAudio.play().catch(stopDetailAudio);
+      const audio = detailAudio;
+      audio.play().catch(() => { if (detailAudio === audio) stopDetailAudio(); });
       button.classList.add('playing');
       button.innerHTML = audioPauseIcon;
       button.setAttribute('title', 'Pause audio');
@@ -392,20 +401,21 @@ function toggleDetailAudio(button) {
     return;
   }
 
-  stopPreviewAudio();
   stopDetailAudio();
   detailAudio = new Audio(audioUrl);
+  const audio = detailAudio;
+  const stopIfCurrent = () => { if (detailAudio === audio) stopDetailAudio(); };
   detailAudioButton = button;
   detailAudioPlayer = player;
   button.classList.add('playing');
   button.innerHTML = audioPauseIcon;
   button.setAttribute('title', 'Pause audio');
   button.setAttribute('aria-label', 'Pause audio');
-  detailAudio.addEventListener('loadedmetadata', () => updateDetailAudioPlayer(player, detailAudio));
-  detailAudio.addEventListener('timeupdate', () => updateDetailAudioPlayer(player, detailAudio));
-  detailAudio.addEventListener('ended', stopDetailAudio, { once: true });
-  detailAudio.addEventListener('error', stopDetailAudio, { once: true });
-  detailAudio.play().catch(stopDetailAudio);
+  audio.addEventListener('loadedmetadata', () => { if (detailAudio === audio) updateDetailAudioPlayer(player, audio); });
+  audio.addEventListener('timeupdate', () => { if (detailAudio === audio) updateDetailAudioPlayer(player, audio); });
+  audio.addEventListener('ended', stopIfCurrent, { once: true });
+  audio.addEventListener('error', stopIfCurrent, { once: true });
+  audio.play().catch(stopIfCurrent);
 }
 
 function seekDetailAudio(range) {
@@ -429,14 +439,14 @@ function togglePreviewAudio(button) {
     return;
   }
 
+  stopDetailAudio();
   if (previewAudio && previewAudioUrl === audioUrl) {
     resetPreviewAudioButton(previewAudioButton);
     previewAudioButton = button;
     if (previewAudio.paused) {
       setPreviewAudioButtonPlaying(button);
-      previewAudio.play().catch(() => {
-        stopPreviewAudio();
-      });
+      const audio = previewAudio;
+      audio.play().catch(() => { if (previewAudio === audio) stopPreviewAudio(); });
     } else {
       previewAudio.pause();
       resetPreviewAudioButton(button);
@@ -446,14 +456,14 @@ function togglePreviewAudio(button) {
 
   stopPreviewAudio();
   previewAudio = new Audio(audioUrl);
+  const audio = previewAudio;
+  const stopIfCurrent = () => { if (previewAudio === audio) stopPreviewAudio(); };
   previewAudioButton = button;
   previewAudioUrl = audioUrl;
   setPreviewAudioButtonPlaying(button);
-  previewAudio.addEventListener('ended', stopPreviewAudio, { once: true });
-  previewAudio.addEventListener('error', stopPreviewAudio, { once: true });
-  previewAudio.play().catch(() => {
-    stopPreviewAudio();
-  });
+  audio.addEventListener('ended', stopIfCurrent, { once: true });
+  audio.addEventListener('error', stopIfCurrent, { once: true });
+  audio.play().catch(stopIfCurrent);
 }
 
 function formatDate(value) {
@@ -465,7 +475,8 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
-  return date.toLocaleString('en-US');
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}, ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function formatDuration(ms) {
@@ -3605,6 +3616,7 @@ function positionPreviewSearchResults() {
 }
 
 function showSongCreationPreview(preview) {
+  previewBpmState = { taps: [], bpm: null };
   const modal = $('song-preview-modal');
   const title = $('song-preview-title');
   const kicker = $('song-preview-kicker');
@@ -3767,6 +3779,11 @@ function showSongCreationPreview(preview) {
 
       if (button.matches('[data-preview-audio-toggle]')) {
         togglePreviewAudio(button);
+        return;
+      }
+
+      if (button.matches('[data-bpm-tap]')) {
+        tapBpm(button);
         return;
       }
 
@@ -4475,7 +4492,7 @@ function renderArtistLinks(artists, showRole = false) {
           ${artwork ? `data-artist-artwork="${escapeHtml(artwork)}"` : ''}
         >
           <span class="artist-list-id">${escapeHtml(artistId)}</span>
-          <span class="artist-list-title">${escapeHtml(title)}${showRole && PortalModel.role(artist.role) !== 'main' ? `<span class="artist-role">${escapeHtml(PortalModel.role(artist.role))}</span>` : ''}</span>
+          <span class="artist-list-label"><span class="artist-list-title">${escapeHtml(title)}</span>${showRole && PortalModel.role(artist.role) !== 'main' ? `<span class="artist-role">${escapeHtml(PortalModel.role(artist.role))}</span>` : ''}</span>
         </button>
       `;
     })
@@ -5906,6 +5923,7 @@ function addTableEditRow(table, workingDetail, action, context = null) {
 }
 
 async function showTableEditModal(table, detail) {
+  previewBpmState = { taps: [], bpm: null };
   const modal = $('song-preview-modal');
   const title = $('song-preview-title');
   const kicker = $('song-preview-kicker');
@@ -6117,6 +6135,11 @@ async function showTableEditModal(table, detail) {
 
       if (button.matches('[data-preview-audio-toggle]')) {
         togglePreviewAudio(button);
+        return;
+      }
+
+      if (button.matches('[data-bpm-tap]')) {
+        tapBpm(button);
         return;
       }
 
@@ -6776,6 +6799,7 @@ async function showTableDetail(table, id) {
 }
 
 function showChangelogDetail(row) {
+  portalShowDetailPane();
   $('detail-content').innerHTML = `
     ${renderDetailSection('Details')}
     ${renderSingleItem('Change ID', row.changeId)}
@@ -6793,6 +6817,7 @@ function showChangelogDetail(row) {
 }
 
 function showBulkMappingDetail() {
+  portalShowDetailPane();
   $('detail-content').innerHTML = `
     ${renderBulkMappingStatusEditor()}
     <p id="selected-mapping-count" class="selected-count">${state.selectedMappings.size} selected entry mapping${state.selectedMappings.size === 1 ? '' : 's'}</p>
@@ -7085,6 +7110,7 @@ function bindEntryGroupIssueLinks() {
 }
 
 function showBulkGroupDetail() {
+  portalShowDetailPane();
   $('detail-content').innerHTML = `
     ${renderBulkGroupStatusEditor()}
     <p id="selected-group-count" class="selected-count">${state.selectedGroups.size} selected entry group${state.selectedGroups.size === 1 ? '' : 's'}</p>
@@ -7094,6 +7120,7 @@ function showBulkGroupDetail() {
 }
 
 function showBulkIssueDetail() {
+  portalShowDetailPane();
   $('detail-content').innerHTML = `
     ${renderBulkIssueResolveButton()}
     <p id="selected-issue-count" class="selected-count">${state.selectedIssues.size} selected issue${state.selectedIssues.size === 1 ? '' : 's'}</p>
@@ -7103,6 +7130,7 @@ function showBulkIssueDetail() {
 }
 
 function showEntryGroupDetail(row) {
+  portalShowDetailPane();
   const statusDate = `${formatDate(row.createdAt)}${row.resolvedAt ? ` / resolved ${formatDate(row.resolvedAt)}` : ''}`;
   $('detail-content').innerHTML = `
     ${renderGroupStatusEditor(row)}
@@ -7134,6 +7162,7 @@ function showEntryGroupDetail(row) {
 }
 
 function showDetail(row) {
+  portalShowDetailPane();
   const isIssue = state.currentView.type === 'issue';
   if (state.currentView.type === 'group') {
     showEntryGroupDetail(row);

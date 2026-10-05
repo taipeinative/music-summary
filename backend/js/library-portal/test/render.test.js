@@ -5,8 +5,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const PortalModel = require('../public/js/portal-model');
 
-function renderer() {
-  const context = vm.createContext({ PortalModel, URLSearchParams, setTimeout, clearTimeout, fetch: () => { throw new Error('Unexpected network call'); } });
+function renderer(globals = {}) {
+  const context = vm.createContext({ PortalModel, URLSearchParams, setTimeout, clearTimeout, fetch: () => { throw new Error('Unexpected network call'); }, ...globals });
   for (const file of ['js/app-config.js', 'js/api-client.js', 'app.js']) {
     let source = fs.readFileSync(path.join(__dirname, '../public', file), 'utf8');
     if (file === 'app.js') {
@@ -41,4 +41,71 @@ test('Flag None is exclusive and high bits survive rendering', () => {
   assert.equal(run("getFlagSummary({'0': 'None', '1': 'A', '1099511627776': 'High'}, '1099511627777')"), 'A, High');
   assert.equal(run("getFlagSummary({'0': 'None', '1': 'A'}, '0')"), 'None');
   assert.match(run("renderFlagDropdown({'0': 'None', '1': 'A'}, '1', '')"), /value="0" >[\s\S]*value="1" checked/);
+});
+
+test('Tap BPM averages intervals and retains results through an idle reset', () => {
+  let state = PortalModel.tapBpm(null, 0);
+  assert.equal(state.bpm, null);
+  state = PortalModel.tapBpm(state, 500);
+  assert.equal(state.bpm, 120);
+  state = PortalModel.tapBpm(state, 1500);
+  assert.equal(state.bpm, 80);
+  state = PortalModel.tapBpm(state, 3500);
+  assert.equal(state.taps.length, 4, 'Exactly two seconds continues the sequence');
+  state = PortalModel.tapBpm(state, 5501);
+  assert.equal(state.taps.length, 1);
+  assert.equal(state.bpm, 51);
+  state = PortalModel.tapBpm(state, 6001);
+  assert.equal(state.bpm, 120);
+  assert.equal(PortalModel.tapBpm(state, 6001).bpm, 120);
+  assert.equal(PortalModel.tapBpm(null, 7000).bpm, null);
+});
+
+test('Timestamps use local 24-hour time and date-only values remain dates', () => {
+  const run = renderer();
+  assert.equal(run("formatDate(new Date(2026, 0, 2, 3, 4, 5))"), '2026-01-02, 03:04:05');
+  assert.equal(run("formatDate('2024-01-02')"), '2024-01-02');
+  assert.equal(run('formatDate(null)'), '-');
+});
+
+test('Detail and editor audio are mutually exclusive, including delayed failures from replaced audio', async () => {
+  const instances = [];
+  class FakeAudio {
+    constructor(url) { this.url = url; this.paused = true; this.listeners = {}; instances.push(this); }
+    play() { this.paused = false; return new Promise((_resolve, reject) => { this.rejectPlay = reject; }); }
+    pause() { this.paused = true; }
+    addEventListener(name, listener) { this.listeners[name] = listener; }
+  }
+  const button = (container) => ({
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
+    closest: () => container
+  });
+  const detailButton = button({ dataset: { audioUrl: 'song-a' }, querySelector: () => null });
+  const input = { value: 'song-a' };
+  const previewButton = button({ querySelector: () => input });
+  const run = renderer({ Audio: FakeAudio, detailButton, previewButton });
+  const playing = () => instances.filter((audio) => !audio.paused);
+
+  run('toggleDetailAudio(detailButton)');
+  assert.deepEqual(playing(), [instances[0]]);
+  run('togglePreviewAudio(previewButton)');
+  assert.deepEqual(playing(), [instances[1]], 'Editor stops detail even for the same URL');
+  run('togglePreviewAudio(previewButton)');
+  assert.equal(playing().length, 0, 'Clicking the active control pauses');
+  run('togglePreviewAudio(previewButton)');
+  assert.deepEqual(playing(), [instances[1]], 'Paused editor resumes without another audio instance');
+  input.value = 'song-b';
+  run('togglePreviewAudio(previewButton)');
+  instances[1].listeners.error();
+  instances[1].rejectPlay(new Error('Late playback failure'));
+  await Promise.resolve();
+  assert.deepEqual(playing(), [instances[2]], 'Old editor callbacks cannot stop the latest audio');
+  run('toggleDetailAudio(detailButton)');
+  instances[0].listeners.ended();
+  instances[0].rejectPlay(new Error('Late playback failure'));
+  await Promise.resolve();
+  assert.deepEqual(playing(), [instances[3]], 'Detail stops editor and ignores callbacks from old detail audio');
+  run('stopDetailAudio(); stopPreviewAudio()');
+  assert.equal(playing().length, 0);
 });

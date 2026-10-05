@@ -13,7 +13,11 @@ test('Preferences reset major versions and retain values while filling minor def
   assert.equal(restore('{bad').view, 'songs');
   assert.equal(restore({ version: '2.0', theme: 'red' }).theme, 'blue');
   const value = restore({ version: '1.9', theme: 'red', view: 'missing' });
-  assert.equal(value.theme, 'red'); assert.equal(value.pinned, false); assert.equal(value.view, 'songs'); assert.equal(value.version, '1.0');
+  assert.equal(value.theme, 'red'); assert.equal(value.pinned, false); assert.equal(value.view, 'songs'); assert.equal(value.version, '1.2');
+  assert.equal(value.autoEditMetadata, false);
+  assert.equal(restore({ version: '1.1', autoEditMetadata: true }).autoEditMetadata, true);
+  assert.equal(restore({ version: '1.1', autoEditMetadata: 'false' }).autoEditMetadata, false);
+  assert.equal(restore({ version: '1.1', view: 'gallery' }).view, 'gallery');
 });
 test('Multilingual selection follows the exact fallback chains', () => {
   const values = [{ locale: 'en', title: 'English' }, { locale: 'zh-hans', title: '简体' }, { locale: 'zh', title: '中文' }, { locale: 1, title: 'Original', fallback: true }];

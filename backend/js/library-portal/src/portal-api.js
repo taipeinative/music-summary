@@ -1,5 +1,6 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { compile } = require('./query');
+const { registerGallery } = require('./gallery');
 const { groupSql } = require('./hydrate');
 const { fields } = require('../public/js/portal-model');
 const languageContext = new AsyncLocalStorage();
@@ -67,6 +68,7 @@ function registerPortal(deps) {
     languageContext.run(language, next);
   });
   app.use(requireAudit);
+  registerGallery({ ...deps, baseSql, title });
   app.get('/api/v1/summary', async (_req, res) => {
     try {
       const [row] = await queryDatabase(`SELECT ${Object.entries(resourceTables).map(([k, t]) => `(SELECT count(*)::int FROM ${t}) AS "${k}"`).join(', ')}`);

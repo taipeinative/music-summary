@@ -8,6 +8,24 @@ function rules(value) {
   if (!Array.isArray(result) || result.length > 20 || result.some((r) => !r || typeof r !== 'object' || Array.isArray(r))) fail('Rules must be an array of at most 20 objects.');
   return result;
 }
+function searchWhere(resource, parameter, fold) {
+  const has = (expression) => `strpos(${fold(`COALESCE(${expression}, '')`)}, ${parameter}) > 0`;
+  const titles = (type, id) => `EXISTS (SELECT 1 FROM ${type}_titles st WHERE st.${type}_id = ${id} AND ${has('st.title')})`;
+  const artists = (type, id) => `EXISTS (SELECT 1 FROM ${type}_artists sa JOIN artist_titles st ON st.artist_id = sa.artist_id WHERE sa.${type}_id = ${id} AND ${has('st.title')})`;
+  const entry = (alias) => ['raw_title', 'raw_artist', 'raw_album'].map((key) => has(`${alias}.${key}`)).join(' OR ');
+  const expressions = {
+    albums: () => [titles('album', 'p.id'), artists('album', 'p.id')],
+    artists: () => [titles('artist', 'p.id'), `EXISTS (SELECT 1 FROM artist_alias aa WHERE aa.artist_id = p.id AND ${has('aa.alias')})`],
+    songs: () => [titles('song', 'p.id'), artists('song', 'p.id'),
+      `EXISTS (SELECT 1 FROM album_tracks at JOIN album_titles st ON st.album_id = at.album_id WHERE at.song_id = p.id AND ${has('st.title')})`,
+      `EXISTS (SELECT 1 FROM entry_mapping em JOIN entries se ON se.entry_id = em.entry_id WHERE em.song_id = p.id AND (${entry('se')}))`],
+    entries: () => [entry('p')],
+    sources: () => [has('p.source_file')],
+    issues: () => [entry('p')],
+    history: () => [`EXISTS (SELECT 1 FROM jsonb_each_text(p.row_pk) pk WHERE ${has('pk.value')})`, has('p.changed_by'), has('p.reason')]
+  };
+  return expressions[resource] ? `(${expressions[resource]().join(' OR ')})` : `strpos(${fold('to_jsonb(p)::text')}, ${parameter}) > 0`;
+}
 function compile(resource, query, { arrays = [], fold = (sql) => `lower(${sql})`, foldText = (s) => s.toLowerCase() } = {}) {
   const catalog = fields[resource];
   if (!catalog) fail('Unknown resource.');
@@ -81,7 +99,7 @@ function compile(resource, query, { arrays = [], fold = (sql) => `lower(${sql})`
   }
   if (resource === 'issues' && query.includeResolved !== 'true') where.push('p.resolved_at IS NULL');
   if (resource === 'entry-groups' && query.includeConfirmed !== 'true') where.push('p.status <> 1');
-  if (query.search?.trim()) where.push(`strpos(${fold('to_jsonb(p)::text')}, ${bind(foldText(query.search.trim()))}) > 0`);
+  if (query.search?.trim()) where.push(searchWhere(resource, bind(foldText(query.search.trim())), fold));
   const order = sort.map((rule) => {
     const f = catalog.find((item) => item.key === rule.field);
     if (!f || f.type === 'relation' || !['asc', 'desc'].includes(rule.direction)) fail('Invalid sort.');

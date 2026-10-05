@@ -35,6 +35,51 @@ test('PostgreSQL API, filters, pagination and atomic audit', { skip: !process.en
         assert.equal(result.status, 200, `${resource}.${field.key}: ${JSON.stringify(result.data)}`);
       }
     });
+    await t.test('Gallery modes, primary locale, multigroup flags, paging, cover preference and search', async () => {
+      const gallery = async (mode, groupBy, extra = {}) => {
+        const result = await call('/gallery?' + new URLSearchParams({ mode, groupBy, ...extra }));
+        assert.equal(result.status, 200, JSON.stringify(result.data));
+        return result.data.groups;
+      };
+      const catalog = require('../public/js/gallery-model');
+      for (const [mode, groupings] of Object.entries(catalog.modes)) for (const grouping of groupings) await gallery(mode, grouping);
+      const primary = await gallery('artists', 'locale', { language: 'chinese' });
+      assert.deepEqual(primary.map((g) => g.key), ['undefined']);
+      assert.equal(primary[0].total, 3);
+      assert.ok(primary[0].rows.some((r) => r.title === '繁體藝人'));
+      const tags = await gallery('artists', 'tag');
+      assert.deepEqual(tags.map((g) => [g.label, g.total]), [['AI', 3], ['Synthesizer', 3]]);
+      assert.equal(tags[0].rows.find((r) => r.id === 1).album_count, 1);
+      assert.equal(tags[0].rows.find((r) => r.id === 1).track_count, 3);
+      const first = await gallery('songs', 'genre');
+      assert.deepEqual(first.map((g) => [g.label, g.total, g.rows.length]), [['Classical', 125, 24], ['Country', 125, 24]]);
+      const second = await gallery('songs', 'genre', { group: 'classical', page: 2 });
+      assert.equal(second.length, 1); assert.equal(second[0].page, 2);
+      assert.equal(new Set([...first[0].rows, ...second[0].rows].map((r) => r.id)).size, 48);
+      assert.equal((await gallery('songs', 'genre', { group: 'classical', page: 999 }))[0].page, 1);
+      assert.deepEqual(await gallery('songs', 'genre', { search: '__no_results__' }), []);
+      assert.deepEqual((await gallery('songs', 'genre', { search: 'Test Album' }))[0].rows.map((r) => r.id), [1, 2, 3]);
+      assert.equal((await call('/gallery?mode=sources')).status, 400);
+      assert.equal((await call('/gallery?mode[]=songs')).status, 400);
+      assert.equal((await call('/gallery?mode=artists&groupBy=year')).status, 400);
+      assert.deepEqual(await gallery('songs', 'genre', { group: "x'; DROP TABLE songs; --" }), []);
+      await fixture.pool.query("INSERT INTO song_locales(song_id,locale,is_primary) VALUES(1,8192,false); UPDATE songs SET genre_tag = 1099511628032, release_date = NULL WHERE song_id = 125; UPDATE albums SET artwork = 'https://example.com/album.jpg' WHERE album_id = 1");
+      const added = (await fixture.pool.query("INSERT INTO albums(album_type,artwork) VALUES(0,'https://example.com/single.jpg') RETURNING album_id")).rows[0].album_id;
+      await fixture.pool.query('INSERT INTO album_tracks VALUES($1,1,1,1)', [added]);
+      try {
+        const locales = await gallery('songs', 'locale');
+        assert.deepEqual(locales.map((g) => [g.label, g.total]), [['Chinese', 1], ['English', 1], ['Japanese', 1], ['Undefined', 124]]);
+        const genres = await gallery('songs', 'genre', { search: 'Song 125' });
+        assert.deepEqual(genres.map((g) => g.label), ['Dance', 'Bass', 'Color Bass', 'Trap']);
+        const years = await gallery('songs', 'year');
+        assert.deepEqual(years.map((g) => g.label), ['2020s', '2024', 'Unknown']);
+        assert.equal((await gallery('songs', 'locale', { group: 'chinese' }))[0].rows[0].artwork, 'https://example.com/album.jpg');
+      } finally {
+        await fixture.pool.query('DELETE FROM album_tracks WHERE album_id = $1', [added]);
+        await fixture.pool.query('DELETE FROM albums WHERE album_id = $1', [added]);
+        await fixture.pool.query("DELETE FROM song_locales WHERE song_id = 1 AND locale = 8192; UPDATE songs SET genre_tag = 3, release_date = '2024-01-02' WHERE song_id = 125; UPDATE albums SET artwork = NULL WHERE album_id = 1");
+      }
+    });
     await t.test('First page recovery, filtered counts, source detail and language', async () => {
       assert.equal((await call('/songs?page=999')).data.page, 1);
       assert.equal((await call('/issues')).data.total, 3);
@@ -64,6 +109,30 @@ test('PostgreSQL API, filters, pagination and atomic audit', { skip: !process.en
       assert.equal((await filter('songs', [{ field: 'locale', value: '0' }])).data.total, 124);
       assert.equal((await filter('albums', [], [{ field: 'artists', direction: 'asc' }])).status, 200);
       assert.equal((await filter('songs', [{ field: 'id;DROP', value: '1' }])).status, 400);
+    });
+    await t.test('Search matches only the requested fields, including related titles and entry metadata', async () => {
+      const search = async (resource, value) => {
+        const result = await call(`/${resource}?search=${encodeURIComponent(value)}`);
+        assert.equal(result.status, 200, JSON.stringify(result.data));
+        return result.data;
+      };
+      for (const [resource, term] of [['albums', 'English A'], ['artists', 'Alias A'], ['songs', '繁體歌曲'], ['songs', 'Test Album'], ['entries', 'Test Album'], ['sources', 'portal-fixture.json'], ['issues', 'Song 1']]) {
+        assert.ok((await search(resource, term)).total > 0, `${resource}: ${term}`);
+      }
+      for (const [resource, term] of [['albums', '2024-01-02'], ['artists', 'artist_tag'], ['songs', '180001'], ['entries', 'portal-fixture.json'], ['sources', '2024-01-01'], ['issues', 'NO_CANDIDATE']]) {
+        assert.equal((await search(resource, term)).total, 0, `${resource}: excludes ${term}`);
+      }
+      await fixture.pool.query("UPDATE entries SET raw_title = 'EntryOnlyTitle', raw_artist = 'EntryOnlyArtist', raw_album = 'EntryOnlyAlbum' WHERE entry_id = 3");
+      await fixture.pool.query("INSERT INTO change_log(table_name,row_pk,operation,changed_by,reason,old_data) VALUES('SearchTableOnly', '{\"SearchKeyOnly\":\"SearchValueOnly\"}', 'SearchOperationOnly', 'SearchInitiatorOnly', 'SearchReasonOnly', '{\"note\":\"SearchOldOnly\"}')");
+      try {
+        for (const term of ['EntryOnlyTitle', 'EntryOnlyArtist', 'EntryOnlyAlbum']) assert.deepEqual((await search('songs', term)).rows.map((row) => row.id), [3]);
+        for (const term of ['SearchValueOnly', 'SearchInitiatorOnly', 'SearchReasonOnly']) assert.equal((await search('history', term)).total, 1);
+        for (const term of ['SearchKeyOnly', 'SearchTableOnly', 'SearchOperationOnly', 'SearchOldOnly']) assert.equal((await search('history', term)).total, 0);
+        assert.equal((await search('songs', "x'; DROP TABLE songs; --")).total, 0);
+      } finally {
+        await fixture.pool.query("UPDATE entries SET raw_title = 'Song 3', raw_artist = 'A', raw_album = 'Test Album' WHERE entry_id = 3");
+        await fixture.pool.query("DELETE FROM change_log WHERE table_name = 'SearchTableOnly'");
+      }
     });
     await t.test('Actor and reason required; issue resolution logs once; no-op logs nothing', async () => {
       assert.equal((await call('/issues/1/resolve', { method: 'PATCH', body: '{}' })).status, 400);
@@ -148,6 +217,7 @@ test('PostgreSQL API, filters, pagination and atomic audit', { skip: !process.en
       assert.equal((await call('/logout', { method: 'POST', body: '{"forget":true}' })).status, 200);
       assert.equal((await call('/session')).data.authenticated, false);
       assert.equal((await call('/songs')).status, 401);
+      assert.equal((await call('/gallery')).status, 401);
       const login = await call('/login', { method: 'POST', body: JSON.stringify(fixture.config) });
       assert.equal(login.status, 200, JSON.stringify(login.data));
       assert.ok(!JSON.stringify(login.data).includes(fixture.config.password));

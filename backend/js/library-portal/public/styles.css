@@ -2,11 +2,11 @@
   --primary: #007bff;
   --primary-light: #4da3ff;
   --primary-dark: #0056b3;
-  --bg-main: #f0f7ff;
+  --bg-main: color-mix(in srgb, var(--primary) 5%, white);
   --bg-panel: #ffffff;
   --text-main: #333333;
   --text-muted: #666666;
-  --border: #cce5ff;
+  --border: color-mix(in srgb, var(--primary) 20%, white);
   --danger: #dc3545;
   --warning: #f59f00;
   --success: #2f9e44;
@@ -50,7 +50,7 @@ select {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(0, 123, 255, 0.13);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 13%, transparent);
   padding: 2rem;
 }
 
@@ -76,12 +76,12 @@ select {
   padding: 0.75rem 0.85rem;
   color: var(--text-main);
   outline: none;
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
 }
 
 .login-card input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .layout {
@@ -98,7 +98,7 @@ select {
   height: 100vh;
   overflow-y: auto;
   padding: 1.5rem 0;
-  box-shadow: 2px 0 10px rgba(0, 123, 255, 0.1);
+  box-shadow: 2px 0 10px color-mix(in srgb, var(--primary) 10%, transparent);
   flex-shrink: 0;
 }
 
@@ -170,7 +170,7 @@ select {
 
 .icon-btn:hover {
   color: var(--primary);
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
 }
 
 .icon-btn svg {
@@ -213,7 +213,7 @@ select {
 
 .nav-item:hover,
 .nav-item.active {
-  background-color: #e6f2ff;
+  background-color: color-mix(in srgb, var(--primary) 10%, white);
   color: var(--primary);
   border-left: 4px solid var(--primary);
 }
@@ -298,7 +298,7 @@ select {
 
 .toolbar-icon-btn:hover,
 .toolbar-icon-btn:focus {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border-color: var(--primary-light);
   outline: none;
 }
@@ -311,7 +311,7 @@ select {
 }
 
 .toolbar-icon-btn.is-active {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border-color: var(--primary);
   color: var(--primary-dark);
 }
@@ -329,7 +329,7 @@ select {
 .mapping-filters select:focus,
 .mapping-filters input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .toggle-label {
@@ -351,7 +351,7 @@ select {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 123, 255, 0.08);
+  box-shadow: 0 4px 6px color-mix(in srgb, var(--primary) 8%, transparent);
   padding: 1rem;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -360,7 +360,7 @@ select {
 .record-card:hover,
 .record-card.active {
   transform: translateX(4px);
-  box-shadow: 0 6px 12px rgba(0, 123, 255, 0.15);
+  box-shadow: 0 6px 12px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .mapping-card {
@@ -379,7 +379,7 @@ select {
 
 .mapping-card.selected {
   border-color: var(--primary);
-  box-shadow: 0 6px 14px rgba(0, 123, 255, 0.18);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .entry-group-card {
@@ -391,7 +391,7 @@ select {
 
 .entry-group-card.selected {
   border-color: var(--primary);
-  box-shadow: 0 6px 14px rgba(0, 123, 255, 0.18);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .entry-group-main {
@@ -409,14 +409,14 @@ select {
 .detail-mini-button {
   width: 100%;
   text-align: left;
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
   cursor: pointer;
 }
 
 .detail-mini-button:hover,
 .detail-mini-button:focus {
   border-color: var(--primary-light);
-  box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
   outline: none;
 }
 
@@ -436,7 +436,7 @@ select {
 
 .mapping-select-dot:hover,
 .mapping-select-dot:focus {
-  box-shadow: 0 0 0 4px rgba(77, 163, 255, 0.18);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent);
   outline: none;
 }
 
@@ -493,7 +493,7 @@ select {
   height: 76px;
   border-radius: 8px;
   overflow: hidden;
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -508,7 +508,7 @@ select {
 
 .artwork-placeholder {
   background:
-    linear-gradient(135deg, rgba(0, 123, 255, 0.15), rgba(77, 163, 255, 0.05)),
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--primary) 5%, transparent)),
     var(--bg-main);
 }
 
@@ -542,7 +542,7 @@ select {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 123, 255, 0.08);
+  box-shadow: 0 4px 6px color-mix(in srgb, var(--primary) 8%, transparent);
   max-height: calc(100vh - 190px);
   overflow: auto;
 }
@@ -561,7 +561,7 @@ select {
   position: sticky;
   top: 0;
   z-index: 3;
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border-bottom: 1px solid var(--border);
 }
 
@@ -603,7 +603,7 @@ select {
 .changelog-row {
   width: 100%;
   border: 0;
-  border-bottom: 1px solid #eef6ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 6%, white);
   background: var(--bg-panel);
   color: inherit;
   cursor: pointer;
@@ -613,7 +613,7 @@ select {
 
 .changelog-row:hover,
 .changelog-row.active {
-  background: #f0f7ff;
+  background: color-mix(in srgb, var(--primary) 5%, white);
 }
 
 .changelog-cell {
@@ -655,14 +655,14 @@ select {
 
 .secondary-btn {
   border: 1px solid var(--border);
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   color: var(--primary-dark);
 }
 
 .secondary-btn:hover,
 .ghost-btn:hover {
   color: var(--primary);
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
 }
 
 .ghost-btn {
@@ -739,7 +739,7 @@ select {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 22px 60px rgba(0, 86, 179, 0.22);
+  box-shadow: 0 22px 60px color-mix(in srgb, var(--primary) 22%, transparent);
   max-height: min(88vh, 920px);
   overflow: hidden;
   width: min(960px, 100%);
@@ -811,7 +811,7 @@ select {
 }
 
 .group-rule-action:hover:not(:disabled) {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
 }
 
 .group-rule-action:disabled {
@@ -990,7 +990,7 @@ select {
 
 .modal-icon-button:hover,
 .modal-icon-button:focus {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   color: var(--primary-dark);
   outline: none;
 }
@@ -1136,7 +1136,7 @@ select {
 }
 
 .preview-mini-card {
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.8rem;
@@ -1150,7 +1150,7 @@ select {
 }
 
 .preview-detail-card {
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem;
@@ -1194,7 +1194,7 @@ select {
 }
 
 .preview-reference-note {
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: #777777;
@@ -1292,7 +1292,7 @@ select {
 .preview-reference-row select:focus,
 .preview-side-search input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
   outline: none;
 }
 
@@ -1361,7 +1361,7 @@ select {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(0, 86, 179, 0.16);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 16%, transparent);
   left: 0;
   opacity: 0;
   padding: 0.5rem;
@@ -1402,11 +1402,18 @@ select {
 }
 
 .preview-audio-input {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.preview-icon-btn.preview-bpm-button {
+  width: 3.2rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 .preview-audio-input .preview-icon-btn.playing {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border-color: var(--primary-light);
   color: var(--primary);
 }
@@ -1448,7 +1455,7 @@ select {
 
 .preview-flag-dropdown[open] summary {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .preview-dropdown-caret {
@@ -1464,7 +1471,7 @@ select {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 12px 28px rgba(0, 86, 179, 0.14);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 14%, transparent);
   display: grid;
   gap: 0.35rem;
   margin-top: 0.35rem;
@@ -1497,14 +1504,14 @@ select {
 }
 
 .preview-flag-option:hover {
-  background: #f0f7ff;
+  background: color-mix(in srgb, var(--primary) 5%, white);
 }
 
 .preview-small-btn,
 .preview-add-btn {
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   color: var(--primary-dark);
   cursor: pointer;
   font-size: 0.78rem;
@@ -1529,7 +1536,7 @@ select {
 
 .preview-icon-btn:hover,
 .preview-icon-btn:focus {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border-color: var(--primary-light);
   color: var(--primary);
   outline: none;
@@ -1547,7 +1554,7 @@ select {
 
 .preview-icon-btn.inactive,
 .preview-icon-btn:disabled {
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   color: #b0b0b0;
   cursor: default;
   opacity: 0.65;
@@ -1557,7 +1564,7 @@ select {
 .preview-icon-btn.inactive:focus,
 .preview-icon-btn:disabled:hover,
 .preview-icon-btn:disabled:focus {
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border-color: var(--border);
   color: #b0b0b0;
 }
@@ -1658,7 +1665,7 @@ select {
 
 .preview-small-btn:hover,
 .preview-add-btn:hover {
-  background: #d8ecff;
+  background: color-mix(in srgb, var(--primary) 16%, white);
 }
 
 .preview-small-btn.danger {
@@ -1736,7 +1743,7 @@ select {
 }
 
 .preview-search-results {
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border: 1px solid var(--border);
   border-radius: 10px;
   max-height: calc(min(88vh, 920px) - 180px);
@@ -1833,7 +1840,7 @@ select {
 
 .preview-search-result:hover {
   border-color: var(--primary-light);
-  background: #f0f7ff;
+  background: color-mix(in srgb, var(--primary) 5%, white);
 }
 
 @media (max-width: 900px) {
@@ -1855,7 +1862,7 @@ select {
   width: 360px;
   background-color: var(--bg-panel);
   border-left: 1px solid var(--border);
-  box-shadow: -2px 0 10px rgba(0, 123, 255, 0.1);
+  box-shadow: -2px 0 10px color-mix(in srgb, var(--primary) 10%, transparent);
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -1897,7 +1904,7 @@ select {
   align-items: end;
   margin-bottom: 1.4rem;
   padding: 0.85rem;
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
@@ -1935,7 +1942,7 @@ select {
 
 .mapping-status-editor select:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .status-save-btn {
@@ -1986,7 +1993,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 12px;
   object-fit: cover;
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
 }
 
 .artist-link,
@@ -2046,6 +2053,22 @@ select {
   color: #888888;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-align: right;
+}
+
+.artist-list-label {
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artist-role {
+  color: #7a8492;
+  font-size: 0.85em;
+  font-weight: 400;
+  margin-left: 0.4em;
 }
 
 .artist-list-title {
@@ -2065,7 +2088,7 @@ select {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 14px 35px rgba(0, 86, 179, 0.2);
+  box-shadow: 0 14px 35px color-mix(in srgb, var(--primary) 20%, transparent);
   height: 164px;
   padding: 0.35rem;
   pointer-events: none;
@@ -2111,7 +2134,7 @@ select {
 .detail-mini-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
   padding: 0.7rem 0.75rem;
 }
 
@@ -2222,7 +2245,7 @@ select {
 .detail-audio-button:hover,
 .detail-audio-button:focus,
 .detail-audio-button.playing {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   border-color: var(--primary-light);
   color: var(--primary);
   outline: none;
@@ -2249,7 +2272,7 @@ select {
 }
 
 .detail-audio-range::-webkit-slider-runnable-track {
-  background: linear-gradient(to right, var(--primary-light) 0 var(--audio-progress, 0%), #dbeafe var(--audio-progress, 0%) 100%);
+  background: linear-gradient(to right, var(--primary-light) 0 var(--audio-progress, 0%), color-mix(in srgb, var(--primary) 16%, white) var(--audio-progress, 0%) 100%);
   border-radius: 999px;
   height: 0.36rem;
 }
@@ -2259,14 +2282,14 @@ select {
   background: var(--primary);
   border: 2px solid #ffffff;
   border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 86, 179, 0.28);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--primary) 28%, transparent);
   height: 0.95rem;
   margin-top: -0.3rem;
   width: 0.95rem;
 }
 
 .detail-audio-range::-moz-range-track {
-  background: linear-gradient(to right, var(--primary-light) 0 var(--audio-progress, 0%), #dbeafe var(--audio-progress, 0%) 100%);
+  background: linear-gradient(to right, var(--primary-light) 0 var(--audio-progress, 0%), color-mix(in srgb, var(--primary) 16%, white) var(--audio-progress, 0%) 100%);
   border-radius: 999px;
   height: 0.36rem;
 }
@@ -2275,7 +2298,7 @@ select {
   background: var(--primary);
   border: 2px solid #ffffff;
   border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 86, 179, 0.28);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--primary) 28%, transparent);
   height: 0.95rem;
   width: 0.95rem;
 }
@@ -2285,11 +2308,11 @@ select {
 }
 
 .detail-audio-range:focus::-webkit-slider-runnable-track {
-  background: #bfdbfe;
+  background: color-mix(in srgb, var(--primary) 26%, white);
 }
 
 .detail-audio-range:focus::-moz-range-track {
-  background: #bfdbfe;
+  background: color-mix(in srgb, var(--primary) 26%, white);
 }
 
 .detail-audio-times {
@@ -2363,7 +2386,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.65rem 0.75rem;
-  background: #fbfdff;
+  background: color-mix(in srgb, var(--primary) 1.5%, white);
 }
 
 .detail-title-box + .detail-title-box {
@@ -2435,7 +2458,7 @@ select {
 }
 
 .details-json {
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--primary) 3%, white);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.8rem;
@@ -2474,7 +2497,7 @@ select {
 }
 
 .page-btn:hover:not(:disabled) {
-  background: #e6f2ff;
+  background: color-mix(in srgb, var(--primary) 10%, white);
   color: var(--primary);
 }
 

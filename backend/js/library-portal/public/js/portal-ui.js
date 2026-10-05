@@ -1,5 +1,6 @@
 /* Portal owns navigation/query state; the retained editor handles domain forms. */
 const portalStorageKey = 'library-portal:preferences';
+const portalColors = { blue: '#2764cc', red: '#bf3e4e', orange: '#b96516', green: '#23835e', purple: '#8152be' };
 let portalPreferences;
 try { portalPreferences = PortalModel.restore(localStorage.getItem(portalStorageKey)); } catch { portalPreferences = PortalModel.defaults(); }
 let portalResource = portalPreferences.view;
@@ -7,8 +8,9 @@ let portalRequest = 0;
 let portalConnection = null;
 let portalDetailRequest = 0;
 const resourceTables = { albums: 'album', artists: 'artist', songs: 'song', entries: 'entry', sources: 'source' };
-const resourceNames = { albums: 'Albums', artists: 'Artists', songs: 'Songs', entries: 'Entries', sources: 'Sources', mappings: 'Mapping', 'entry-groups': 'Mapping', issues: 'Issues', history: 'History', settings: 'Settings' };
+const resourceNames = { albums: 'Albums', artists: 'Artists', songs: 'Songs', entries: 'Entries', sources: 'Sources', mappings: 'Mapping', 'entry-groups': 'Mapping', issues: 'Issues', history: 'History', gallery: 'Gallery', settings: 'Settings' };
 const navIcons = {
+  gallery: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="2"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
   albums: '<rect x="3" y="3" width="17" height="18" rx="2"/><circle cx="13" cy="12" r="5"/><circle cx="13" cy="12" r="1"/><path d="M6 3v18"/>',
   artists: '<rect x="8" y="2" width="8" height="13" rx="4"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
   songs: '<path d="M15 3v14M15 3l5 4"/><ellipse cx="11" cy="18" rx="4" ry="3"/>',
@@ -35,13 +37,14 @@ function portalView(resource = portalResource) {
   return value;
 }
 function portalTheme() {
-  const color = ({ blue: '#2764cc', red: '#bf3e4e', orange: '#b96516', green: '#23835e', purple: '#8152be' })[portalPreferences.theme];
+  const color = portalColors[portalPreferences.theme];
   document.documentElement.style.setProperty('--primary', color);
   document.documentElement.style.setProperty('--primary-dark', color);
   document.documentElement.style.setProperty('--primary-light', color);
   $('app-view').classList.toggle('nav-expanded', portalPreferences.pinned);
 }
 function portalClearSelection() {
+  portalReturnToList(false);
   portalDetailRequest++;
   stopDetailAudio();
   state.selectedKey = null;
@@ -89,7 +92,9 @@ LibraryManagerApi.fetchJson = async function (url, options = {}) {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method) && !/\/api\/v1\/(login|logout)\?/.test(target)) {
     const body = JSON.parse(options.body || '{}');
     const preview = options.method === 'POST' && /^\/api\/v1\/artists\/\d+\/merge\?/.test(target) && body.dryRun === true;
-    if (!preview) Object.assign(body, await portalAudit(body.reason || ''));
+    if (!preview) Object.assign(body, portalPreferences.autoEditMetadata
+      ? PortalModel.editMetadata(options.method, new URL(target, location.origin).pathname, body, portalConnection?.user)
+      : await portalAudit(body.reason || ''));
     options = { ...options, body: JSON.stringify(body) };
   }
   return originalFetchJson(target, options);
@@ -213,9 +218,10 @@ openEntryGroupRow = async function (id) {
 renderSidebar = function () {
   const resource = portalResource;
   const item = (key, label, count = null) => `<button type="button" class="nav-item${(key === resource || (key === 'mappings' && resource === 'entry-groups')) ? ' active' : ''}" data-resource="${key}" aria-label="${label}" title="${label}"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true">${navIcons[key]}</svg></span><span class="nav-label">${label}</span>${count === null ? '' : `<span class="nav-count">${count}</span>`}</button>`;
-  $('sidebar-nav').innerHTML = '<hr class="nav-divider">' + ['albums', 'artists', 'songs', 'entries', 'sources', 'mappings', 'issues', 'history'].map((key) => `${key === 'mappings' ? '<hr class="nav-divider">' : ''}${item(key, ({ albums: 'Album', artists: 'Artist', songs: 'Song', entries: 'Entry', sources: 'Source', mappings: 'Mapping', issues: 'Issue', history: 'History' })[key], state.summary?.[key === 'mappings' ? portalPreferences.mappingMode : key] || 0)}`).join('') + `<div class="nav-bottom">${item('settings', 'Settings')}${item('logout', 'Logout')}</div>`;
+  $('sidebar-nav').innerHTML = '<hr class="nav-divider">' + ['albums', 'artists', 'songs', 'entries', 'sources', 'mappings', 'issues', 'history'].map((key) => `${key === 'mappings' ? '<hr class="nav-divider">' : ''}${item(key, ({ albums: 'Album', artists: 'Artist', songs: 'Song', entries: 'Entry', sources: 'Source', mappings: 'Mapping', issues: 'Issue', history: 'History' })[key], state.summary?.[key === 'mappings' ? portalPreferences.mappingMode : key] || 0)}`).join('') + `<div class="nav-bottom">${item('gallery', 'Gallery')}${item('settings', 'Settings')}${item('logout', 'Logout')}</div>`;
   $('sidebar-nav').querySelectorAll('[data-resource]').forEach((button) => button.onclick = async () => {
     try {
+      portalSetMobileMenu(false, false);
       if (button.dataset.resource === 'logout') {
         portalRequest++; portalSave();
         await fetchJson('/api/logout', { method: 'POST', body: JSON.stringify({ forget: true }) });
@@ -228,11 +234,14 @@ renderSidebar = function () {
 function portalPagination(payload) {
   const start = payload.total ? (payload.page - 1) * payload.pageSize + 1 : 0;
   const end = Math.min(payload.page * payload.pageSize, payload.total);
-  $('portal-pagination').innerHTML = `<button aria-label="First" data-page="1" ${payload.page <= 1 ? 'disabled' : ''}>|‹</button><button aria-label="Previous" data-page="${payload.page - 1}" ${payload.page <= 1 ? 'disabled' : ''}>‹</button><span class="portal-page-summary">Page ${payload.total ? payload.page : 0} of ${payload.pageCount} <span class="portal-page-range">(${start}-${end} of ${payload.total})</span></span><button aria-label="Next" data-page="${payload.page + 1}" ${payload.page >= payload.pageCount ? 'disabled' : ''}>›</button><button aria-label="Last" data-page="${payload.pageCount}" ${payload.page >= payload.pageCount ? 'disabled' : ''}>›|</button>`;
+  const icon = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
+  $('portal-pagination').innerHTML = `<button aria-label="First" title="First" data-page="1" ${payload.page <= 1 ? 'disabled' : ''}>${icon('M6 5v14M17 5l-7 7 7 7')}</button><button aria-label="Previous" title="Previous" data-page="${payload.page - 1}" ${payload.page <= 1 ? 'disabled' : ''}>${icon('M15 5l-7 7 7 7')}</button><span class="portal-page-summary">Page ${payload.total ? payload.page : 0} of ${payload.pageCount} <span class="portal-page-range">(${start}-${end} of ${payload.total})</span></span><button aria-label="Next" title="Next" data-page="${payload.page + 1}" ${payload.page >= payload.pageCount ? 'disabled' : ''}>${icon('M9 5l7 7-7 7')}</button><button aria-label="Last" title="Last" data-page="${payload.pageCount}" ${payload.page >= payload.pageCount ? 'disabled' : ''}>${icon('M18 5v14M7 5l7 7-7 7')}</button>`;
   $('portal-pagination').querySelectorAll('button').forEach((button) => button.onclick = () => portalNavigate(portalResource, { ...portalView(), page: Number(button.dataset.page) }).catch(portalError));
 }
 renderPagination = () => {};
 async function portalNavigate(resource, candidate = null) {
+  portalSetMobileMenu(false, false);
+  clearTimeout(portalSearchTimer);
   if (!resourceNames[resource]) resource = 'songs';
   const request = ++portalRequest;
   const prefs = candidate || portalView(resource);
@@ -241,7 +250,14 @@ async function portalNavigate(resource, candidate = null) {
   portalClearSelection();
   $('portal-title').textContent = resourceNames[resource];
   const settings = resource === 'settings';
+  const gallery = resource === 'gallery';
+  $('results').classList.toggle('gallery-view', gallery);
+  $('results').classList.toggle('table-view', Boolean(resourceTables[resource]) || resource === 'history');
   for (const id of ['portal-query', 'portal-pagination', 'portal-reload']) $(id).classList.toggle('hidden', settings);
+  $('portal-pagination').classList.toggle('hidden', settings || gallery);
+  $('portal-filter').classList.toggle('hidden', gallery);
+  $('gallery-grouping').classList.toggle('hidden', !gallery);
+  $('gallery-mode-switch').classList.toggle('hidden', !gallery);
   const mapping = ['entry-groups', 'mappings'].includes(resource);
   $('mode-switch').classList.toggle('hidden', !mapping);
   $('mode-switch').querySelectorAll('button').forEach((button) => button.classList.toggle('active', button.dataset.mode === resource));
@@ -252,6 +268,7 @@ async function portalNavigate(resource, candidate = null) {
     portalPreferences.view = resource; portalSave(); renderSidebar(); portalSettings(); return;
   }
   $('portal-search').value = prefs.search;
+  if (gallery) return portalLoadGallery(prefs, request);
   if (!candidate) $('results').innerHTML = '<p class="meta">Loading…</p>';
   const params = new URLSearchParams({ page: prefs.page, pageSize: prefs.pageSize, search: prefs.search, filters: JSON.stringify(prefs.filters), sort: JSON.stringify(prefs.sort), includeConfirmed: prefs.includeConfirmed, includeResolved: prefs.includeResolved });
   let payload;
@@ -277,16 +294,28 @@ async function portalNavigate(resource, candidate = null) {
   $('portal-filter').classList.toggle('is-active', Boolean(prefs.filters.length || prefs.sort.length || prefs.includeConfirmed || prefs.includeResolved));
 }
 function portalSettings() {
-  $('results').innerHTML = `<section class="portal-settings"><label>Colour<select id="portal-theme">${['blue', 'red', 'orange', 'green', 'purple'].map((value) => `<option value="${value}" ${value === portalPreferences.theme ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label><label>Keep navigation expanded<input id="portal-pinned" type="checkbox" ${portalPreferences.pinned ? 'checked' : ''}></label><label>Multilingual fields<select id="portal-language">${[['original', 'Original'], ['english', 'English'], ['chinese', '中文']].map(([value, label]) => `<option value="${value}" ${value === portalPreferences.language ? 'selected' : ''}>${label}</option>`).join('')}</select></label></section>`;
-  for (const [id, key] of [['portal-theme', 'theme'], ['portal-pinned', 'pinned'], ['portal-language', 'language']]) $(id).onchange = () => { portalPreferences[key] = key === 'pinned' ? $(id).checked : $(id).value; portalTheme(); portalSave(); };
+  $('results').innerHTML = `<section class="portal-settings"><div class="portal-theme-setting"><span>Theme color</span><div class="portal-theme-colors" role="group" aria-label="Theme color">${Object.entries(portalColors).map(([name, color]) => `<button type="button" data-theme="${name}" style="--swatch: ${color}" aria-label="${name[0].toUpperCase() + name.slice(1)}" aria-pressed="${name === portalPreferences.theme}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg></button>`).join('')}</div></div><label>Keep navigation expanded<input id="portal-pinned" type="checkbox" ${portalPreferences.pinned ? 'checked' : ''}></label><label>Multilingual fields<select id="portal-language">${[['original', 'Original'], ['english', 'English'], ['chinese', '中文']].map(([value, label]) => `<option value="${value}" ${value === portalPreferences.language ? 'selected' : ''}>${label}</option>`).join('')}</select></label></section>`;
+  $('results').querySelector('.portal-settings').insertAdjacentHTML('beforeend', `<label>Auto complete edit metadata<input id="portal-auto-edit-metadata" type="checkbox" ${portalPreferences.autoEditMetadata ? 'checked' : ''}></label>`);
+  document.querySelectorAll('[data-theme]').forEach((button) => { button.onclick = () => {
+    portalPreferences.theme = button.dataset.theme;
+    document.querySelectorAll('[data-theme]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+    portalTheme(); portalSave();
+  }; });
+  for (const [id, key] of [['portal-pinned', 'pinned'], ['portal-language', 'language'], ['portal-auto-edit-metadata', 'autoEditMetadata']]) $(id).onchange = () => { portalPreferences[key] = $(id).type === 'checkbox' ? $(id).checked : $(id).value; portalTheme(); portalSave(); };
 }
 const originalShowTableDetail = showTableDetail;
 showTableDetail = async function (table, id) {
-  if (table !== 'source') return originalShowTableDetail(table, id);
-  const request = ++portalDetailRequest;
-  const detail = await fetchJson(`/api/v1/sources/${encodeURIComponent(id)}`);
-  if (request !== portalDetailRequest) return;
-  $('detail-content').innerHTML = `<h2>Source</h2>${renderSingleItem('Source ID', detail.source_id)}${renderSingleItem('Export Date', formatDate(detail.export_date))}${renderSingleItem('Import Date', formatDate(detail.import_date))}${renderSingleItem('Imported entries', detail.imported_count)}`;
+  portalShowDetailPane(true);
+  const request = portalDetailRequest + 1;
+  try {
+    if (table !== 'source') return await originalShowTableDetail(table, id);
+    portalDetailRequest++;
+    const detail = await fetchJson(`/api/v1/sources/${encodeURIComponent(id)}`);
+    if (request !== portalDetailRequest) return;
+    $('detail-content').innerHTML = `<h2>Source</h2>${renderSingleItem('Source ID', detail.source_id)}${renderSingleItem('Export Date', formatDate(detail.export_date))}${renderSingleItem('Import Date', formatDate(detail.import_date))}${renderSingleItem('Imported entries', detail.imported_count)}`;
+  } catch (error) {
+    if (request === portalDetailRequest) $('detail-content').innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
 };
 
 function portalRuleHtml(rule, index, sorting) {
@@ -299,7 +328,7 @@ function portalRuleHtml(rule, index, sorting) {
   else if (field.type === 'enum') control = `<select data-value>${renderEnumOptions(options, rule.value ?? Object.keys(options)[0])}</select>`;
   else if (field.type === 'relation') control = `<select data-value>${renderEnumOptions({ true: 'Yes', false: 'No' }, rule.value ?? 'true')}</select>`;
   else {
-    const operators = field.type === 'text' ? { is: 'is', isNot: 'is not', contains: 'contains', notContains: 'not contains', matches: 'matches' } : { gt: '>', gte: '>=', eq: '=', ne: '!=', lte: '<=', lt: '<' };
+    const operators = field.type === 'text' ? { is: 'is', isNot: 'is not', contains: 'contains', notContains: 'not contains', matches: 'matches' } : { gt: '>', gte: '≥', eq: '=', ne: '≠', lte: '≤', lt: '<' };
     control = `<select data-operator>${renderEnumOptions(operators, rule.operator || (field.type === 'text' ? 'contains' : 'eq'))}</select><input data-value type="${field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}" value="${escapeHtml(rule.value ?? '')}" ${field.type === 'duration' ? 'placeholder="3:05"' : ''}>`;
   }
   return `<div class="portal-rule" data-index="${index}"><select data-field>${catalog.map((f) => `<option value="${f.key}" ${f.key === field.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select>${control}<button data-remove aria-label="Remove condition">×</button></div>`;
@@ -350,9 +379,10 @@ $('portal-search').oninput = () => {
   portalSearchTimer = setTimeout(() => { if (resource === portalResource) portalNavigate(resource, { ...portalView(resource), search, page: 1 }).catch(portalError); }, 300);
 };
 const sidebar = document.querySelector('.sidebar');
-sidebar.addEventListener('pointerenter', () => { if (!modalOpenCount) $('app-view').classList.add('nav-expanded'); });
+sidebar.addEventListener('pointerenter', () => { if (!portalNarrowScreen.matches && !modalOpenCount) $('app-view').classList.add('nav-expanded'); });
 sidebar.addEventListener('pointerleave', () => { if (!modalOpenCount && !portalPreferences.pinned && !sidebar.contains(document.activeElement)) $('app-view').classList.remove('nav-expanded'); });
-sidebar.addEventListener('focusin', () => { if (!modalOpenCount) $('app-view').classList.add('nav-expanded'); });
+sidebar.addEventListener('focusin', () => { if (!portalNarrowScreen.matches && !modalOpenCount) $('app-view').classList.add('nav-expanded'); });
 sidebar.addEventListener('focusout', () => queueMicrotask(() => { if (!modalOpenCount && !portalPreferences.pinned && !sidebar.contains(document.activeElement) && !sidebar.matches(':hover')) $('app-view').classList.remove('nav-expanded'); }));
 portalTheme();
+portalInitializeResponsive();
 initialize();

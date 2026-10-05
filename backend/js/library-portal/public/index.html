@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Library Portal</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="portal.css">
 </head>
@@ -39,9 +40,16 @@
   </div>
 
   <div id="app-view" class="layout hidden">
-    <aside class="sidebar">
+    <div id="portal-mobile-bar" class="portal-mobile-bar">
+      <button id="portal-menu-toggle" class="portal-mobile-button" type="button" aria-label="Open navigation" aria-controls="portal-sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <span class="portal-mobile-brand">Library Portal</span>
+      <button id="portal-detail-back" class="portal-mobile-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg><span>Back to list</span></button>
+    </div>
+    <button id="portal-menu-backdrop" type="button" tabindex="-1" aria-label="Close navigation"></button>
+    <aside id="portal-sidebar" class="sidebar" aria-label="Navigation">
       <div class="brand">
         <h2>Library Portal</h2>
+        <button id="portal-menu-close" class="portal-mobile-button" type="button" aria-label="Close navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
         <div id="connection-info" class="connection-info"></div>
       </div>
       <nav id="sidebar-nav"></nav>
@@ -49,8 +57,8 @@
 
     <main class="content">
       <div class="portal-topbar">
-      <header class="portal-heading"><h1 id="portal-title">Songs</h1><div class="portal-actions"><div id="mode-switch" class="hidden"><button data-mode="entry-groups">Entry Group</button><button data-mode="mappings">Entry Mapping</button></div><span id="artist-action"></span><button id="portal-reload" class="toolbar-icon-btn" title="Reload" aria-label="Reload">↻</button></div></header>
-      <div id="portal-query"><button id="portal-filter" class="toolbar-icon-btn" aria-label="Filter and sort"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14v1.5H3V4Zm2.5 5h9v1.5h-9V9ZM8 14h4v1.5H8V14Z"/></svg></button><input id="portal-search" type="search" placeholder="Search" aria-label="Search"></div>
+      <header class="portal-heading"><h1 id="portal-title">Songs</h1><div class="portal-actions"><div id="mode-switch" class="hidden"><button data-mode="entry-groups">Entry Group</button><button data-mode="mappings">Entry Mapping</button></div><div id="gallery-mode-switch" class="hidden" role="group" aria-label="Gallery mode"><button data-mode="albums">Album</button><button data-mode="artists">Artist</button><button data-mode="songs">Song</button></div><span id="artist-action"></span><button id="portal-reload" class="toolbar-icon-btn" title="Reload" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 6.5h5v-5M17.66 17.66a8 8 0 1 1 0-13"/></svg></button></div></header>
+      <div id="portal-query"><select id="gallery-grouping" class="hidden" aria-label="Group by"></select><button id="portal-filter" class="toolbar-icon-btn" aria-label="Filter and sort"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4h14v1.5H3V4Zm2.5 5h9v1.5h-9V9ZM8 14h4v1.5H8V14Z"/></svg></button><input id="portal-search" type="search" placeholder="Search" aria-label="Search"></div>
       <nav id="portal-pagination" aria-label="Pagination"></nav>
       <p id="portal-error" role="alert" class="form-message"></p>
       </div>
@@ -216,6 +224,6 @@
   <script src="app.js"></script>
   <script src="js/portal-model.js"></script>
   <script src="js/portal-enums.js"></script>
-  <script src="js/portal-ui.js"></script>
+  <script src="js/gallery-model.js"></script><script src="js/gallery-ui.js"></script><script src="js/portal-responsive.js"></script><script src="js/portal-ui.js"></script>
 </body>
 </html>

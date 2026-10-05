@@ -12,17 +12,18 @@
     issues: [F('id', 'ID', 'number'), F('issue_type', 'Issue Type', 'enum', 'issue')],
     history: [F('id', 'ID', 'number'), F('table_name', 'Table'), F('operation', 'Operation'), F('changed_at', 'Date', 'date')]
   };
-  const defaults = () => ({ version: '1.0', view: 'songs', mappingMode: 'entry-groups', theme: 'blue', language: 'original', pinned: false, views: {}, tableWidths: {}, historyWidths: {} });
+  const defaults = () => ({ version: '1.2', view: 'songs', mappingMode: 'entry-groups', theme: 'blue', language: 'original', pinned: false, autoEditMetadata: false, views: {}, tableWidths: {}, historyWidths: {} });
   function restore(raw) {
     const base = defaults();
     try {
       const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
       if (!saved || !/^1\.\d+$/.test(saved.version)) return base;
       const value = { ...base, ...saved, version: base.version };
-      if (!fields[value.view] && value.view !== 'settings') value.view = 'songs';
+      if (!fields[value.view] && !['settings', 'gallery'].includes(value.view)) value.view = 'songs';
       if (!['entry-groups', 'mappings'].includes(value.mappingMode)) value.mappingMode = 'entry-groups';
       if (!['original', 'english', 'chinese'].includes(value.language)) value.language = 'original';
       if (!['blue', 'red', 'orange', 'green', 'purple'].includes(value.theme)) value.theme = 'blue';
+      value.autoEditMetadata = value.autoEditMetadata === true;
       for (const key of ['views', 'tableWidths', 'historyWidths']) if (!value[key] || typeof value[key] !== 'object' || Array.isArray(value[key])) value[key] = {};
       return value;
     } catch { return base; }
@@ -53,7 +54,36 @@
   function role(value) {
     return ({ 0: 'main', 1: 'featured', 2: 'remix', MAIN: 'main', FEAT: 'featured', REMIX: 'remix' })[value] || String(value ?? '-');
   }
-  const api = { fields, defaults, restore, duration, title, locales, role };
+  function editMetadata(method, pathname, body, user) {
+    const changedBy = String(user || '').trim();
+    if (!changedBy) throw new Error('Operator is unavailable. Please sign in again.');
+    const routes = [
+      ['POST', /^\/api\/v1\/artists$/, 'artist create'],
+      ['POST', /^\/api\/v1\/artists\/\d+\/merge$/, 'artist merge'],
+      ['PATCH', /^\/api\/v1\/(albums|artists|songs|entries)\/\d+$/, 'table edit'],
+      ['PUT', /^\/api\/v1\/entry-groups\/\d+\/entries$/, 'entry group membership update'],
+      ['PATCH', /^\/api\/v1\/mappings\/\d+\/\d+\/status$/, 'status update'],
+      ['PATCH', /^\/api\/v1\/mappings\/status$/, 'batch status update'],
+      ['PATCH', /^\/api\/v1\/entry-groups\/\d+\/status$/, 'entry group status update'],
+      ['PATCH', /^\/api\/v1\/entry-groups\/status$/, 'batch entry group status update'],
+      ['PATCH', /^\/api\/v1\/issues\/\d+\/resolve$/, 'issue resolve'],
+      ['PATCH', /^\/api\/v1\/issues\/resolve$/, 'batch issue resolve']
+    ];
+    const action = routes.find(([verb, pattern]) => verb === method && pattern.test(pathname))?.[2];
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (!reason && !action) throw new Error('Automatic edit metadata is unavailable for this operation.');
+    return { changedBy, reason: reason || `library-manager ${action}` };
+  }
+  function tapBpm(state, now) {
+    const previous = state?.taps || [];
+    const bpm = state?.bpm ?? null;
+    if (!Number.isFinite(now)) throw new Error('Invalid tap time.');
+    if (previous.length && now <= previous.at(-1)) return { taps: previous, bpm };
+    const taps = previous.length && now - previous.at(-1) <= 2000 ? [...previous, now] : [now];
+    // The sum of successive intervals equals the elapsed time since the first tap.
+    return { taps, bpm: taps.length < 2 ? bpm : Math.round(60000 * (taps.length - 1) / (now - taps[0])) };
+  }
+  const api = { fields, defaults, restore, duration, title, locales, role, tapBpm, editMetadata };
   if (typeof module !== 'undefined') module.exports = api;
   else root.PortalModel = api;
 })(globalThis);
